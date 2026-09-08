@@ -1,0 +1,31 @@
+{
+    "name": "@bountyboard/contracts",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "compile": "hardhat compile",
+        "node": "hardhat node",
+        "test": "hardhat test",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "deploy:local": "hardhat run scripts/deploy.ts --network localhost"
+    },
+    "devDependencies": {
+        "@nomicfoundation/hardhat-ethers": "^4.0.15",
+        "@nomicfoundation/hardhat-mocha": "^3.1.0",
+        "chai": "^6.2.2",
+        "dotenv": "^16.4.7",
+        "ethers": "^6.17.0",
+        "hardhat": "^3.15.0",
+        "mocha": "^11.8.0",
+        "typescript": "~5.7.2"
+    },
+    "description": "",
+    "main": "index.js",
+    "directories": {
+        "test": "test"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC"
+}

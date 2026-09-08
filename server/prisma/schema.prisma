@@ -1,0 +1,14 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Domain models will be expanded in Phase 3 when the REST API is implemented.
+model User {
+  id        String   @id @default(cuid())
+  wallet    String   @unique
+  createdAt DateTime @default(now())
+}
