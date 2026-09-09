@@ -20,6 +20,8 @@ export function useWallet() {
 
             // ethers wraps window.ethereum so we can use clean async functions
             const provider = new BrowserProvider(window.ethereum);
+            const network = await provider.getNetwork();
+console.log("Connected chain ID:", network.chainId.toString());
 
             // This triggers the MetaMask popup asking the user to approve the connection
             const accounts = await provider.send('eth_requestAccounts', []);
