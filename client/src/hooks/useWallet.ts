@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { BrowserProvider, formatEther } from 'ethers';
+import { BrowserProvider, formatEther, type JsonRpcSigner } from 'ethers';
 
 export function useWallet() {
     const [address, setAddress] = useState<string | null>(null);
     const [balance, setBalance] = useState<string | null>(null);
+    const [signer, setSigner] = useState<JsonRpcSigner | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isConnecting, setIsConnecting] = useState(false);
 
@@ -18,20 +19,16 @@ export function useWallet() {
         try {
             setIsConnecting(true);
 
-            // ethers wraps window.ethereum so we can use clean async functions
             const provider = new BrowserProvider(window.ethereum);
-            const network = await provider.getNetwork();
-console.log("Connected chain ID:", network.chainId.toString());
+            await provider.send('eth_requestAccounts', []);
 
-            // This triggers the MetaMask popup asking the user to approve the connection
-            const accounts = await provider.send('eth_requestAccounts', []);
-            const connectedAddress = accounts[0];
-
-            // Ask the local blockchain what this address's balance is
+            // A signer is tied to whichever account MetaMask currently has active
+            const connectedSigner = await provider.getSigner();
+            const connectedAddress = await connectedSigner.getAddress();
             const rawBalance = await provider.getBalance(connectedAddress);
 
+            setSigner(connectedSigner);
             setAddress(connectedAddress);
-            setBalance(formatEther(rawBalance)); // convert from wei to ETH
             setBalance(Number(formatEther(rawBalance)).toFixed(4));
         } catch (err) {
             console.error(err);
@@ -41,5 +38,5 @@ console.log("Connected chain ID:", network.chainId.toString());
         }
     }
 
-    return { address, balance, error, isConnecting, connect };
+    return { address, balance, signer, error, isConnecting, connect };
 }
