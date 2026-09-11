@@ -179,8 +179,8 @@ describe("BountyEscrow", function () {
         await createTx.wait();
 
         try {
-            await bountyEscrow
-                .connect(attacker)
+            await (bountyEscrow
+                .connect(attacker) as typeof bountyEscrow)
                 .assignFreelancer(1, freelancer.address);
 
             expect.fail("Transaction should have reverted");
@@ -319,8 +319,8 @@ describe("BountyEscrow", function () {
         await assignTx.wait();
 
         try {
-            await bountyEscrow
-                .connect(attacker)
+            await (bountyEscrow
+                .connect(attacker) as typeof bountyEscrow)
                 .releasePayment(1);
 
             expect.fail("Transaction should have reverted");
@@ -446,8 +446,8 @@ describe("BountyEscrow", function () {
         const milestoneAmount = ethers.parseEther("2");
 
         try {
-            await bountyEscrow
-                .connect(attacker)
+            await (bountyEscrow
+                .connect(attacker) as typeof bountyEscrow)
                 .createMilestone(
                     1,
                     "Malicious milestone",
@@ -573,8 +573,8 @@ describe("BountyEscrow", function () {
         await milestoneTx.wait();
 
         try {
-            await bountyEscrow
-                .connect(attacker)
+            await (bountyEscrow
+                .connect(attacker) as typeof bountyEscrow)
                 .approveMilestone(1, 0);
 
             expect.fail("Transaction should have reverted");
