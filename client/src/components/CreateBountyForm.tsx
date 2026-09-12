@@ -1,20 +1,13 @@
 import { useState } from 'react';
 import { Contract, parseEther, type JsonRpcSigner } from 'ethers';
 import BountyEscrowArtifact from '../contracts/BountyEscrow.json';
-import { BOUNTY_BOARD_CHAIN_ID, BOUNTY_ESCROW_ADDRESS } from '../contracts/config';
+import { BOUNTY_ESCROW_ADDRESS } from '../contracts/config';
+import { API_BASE_URL } from '../config';
 
 type Props = {
     signer: JsonRpcSigner;
     onCreated: () => void;
 };
-
-function getErrorMessage(error: unknown) {
-    if (error instanceof Error) {
-        return error.message;
-    }
-
-    return 'Unknown wallet or contract error.';
-}
 
 export function CreateBountyForm({ signer, onCreated }: Props) {
     const [title, setTitle] = useState('');
@@ -26,6 +19,10 @@ export function CreateBountyForm({ signer, onCreated }: Props) {
         e.preventDefault();
         setStatus(null);
 
+        if (!title.trim()) {
+            setStatus('Enter a title for the bounty.');
+            return;
+        }
         if (!reward || Number(reward) <= 0) {
             setStatus('Enter a reward amount greater than 0.');
             return;
@@ -33,35 +30,51 @@ export function CreateBountyForm({ signer, onCreated }: Props) {
 
         try {
             setIsSubmitting(true);
-            const provider = signer.provider;
-            const network = await provider.getNetwork();
+            setStatus('Waiting for you to confirm in MetaMask...');
 
-            if (network.chainId !== BOUNTY_BOARD_CHAIN_ID) {
-                throw new Error(`Wrong network. Select BountyBoard Local (chain ID ${BOUNTY_BOARD_CHAIN_ID}), not ${network.chainId}.`);
-            }
-
-            const deployedCode = await provider.getCode(BOUNTY_ESCROW_ADDRESS);
-            if (deployedCode === '0x') {
-                throw new Error(`No contract is deployed at ${BOUNTY_ESCROW_ADDRESS}. Deploy BountyEscrow to the connected local chain.`);
-            }
-
-            const value = parseEther(reward);
             const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, signer);
-            await contract.createBounty.staticCall({ value });
-
-            setStatus(`Confirm ${reward} ETH escrow to ${BOUNTY_ESCROW_ADDRESS} in MetaMask. Network fee is separate.`);
-            const tx = await contract.createBounty({ value });
+            const tx = await contract.createBounty({ value: parseEther(reward) });
 
             setStatus('Transaction sent, waiting for confirmation...');
-            await tx.wait(); // waits for the transaction to be mined into a block
+            const receipt = await tx.wait();
+
+            // Decode the BountyCreated event to recover the new bounty's ID
+            const event = receipt.logs
+                .map((log: any) => {
+                    try {
+                        return contract.interface.parseLog(log);
+                    } catch {
+                        return null; // ignore logs from other contracts, if any
+                    }
+                })
+                .find((parsed: any) => parsed?.name === 'BountyCreated');
+
+            const bountyId = event?.args?.bountyId?.toString();
+
+            if (bountyId) {
+                setStatus('Saving bounty details...');
+                const metadataRes = await fetch(`${API_BASE_URL}/bounties/${bountyId}/metadata`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, description: '' }),
+                });
+
+                if (!metadataRes.ok) {
+                    const errorBody = await metadataRes.text();
+                    console.error('Metadata save failed:', metadataRes.status, errorBody);
+                    setStatus(`Bounty created on-chain, but saving the title failed (${metadataRes.status}). Check console.`);
+                }
+            } else {
+                console.warn('Could not extract bountyId from transaction receipt — title will not be saved.');
+            }
 
             setStatus(`Bounty created! Tx hash: ${tx.hash}`);
-            onCreated();
             setTitle('');
             setReward('');
+            onCreated();
         } catch (err) {
             console.error(err);
-            setStatus(`Transaction failed: ${getErrorMessage(err)}`);
+            setStatus('Transaction failed or was rejected.');
         } finally {
             setIsSubmitting(false);
         }
@@ -103,3 +116,4 @@ export function CreateBountyForm({ signer, onCreated }: Props) {
         </form>
     );
 }
+// </parameter>

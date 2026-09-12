@@ -146,6 +146,7 @@ export function BountyCard({ bounty, connectedAddress, signer, onUpdated }: Prop
         <div className={`glass rounded-2xl border-l-4 ${statusColor} p-5`}>
             <div className="flex items-center justify-between">
                 <p className="text-sm text-[#9B96AE]">Bounty #{bounty.id}</p>
+                <p className="font-display mt-1 text-lg text-[#F1EEE6]">{bounty.title}</p>
                 <StatusBadge completed={bounty.completed} hasFreelancer={hasFreelancer} />
             </div>
 

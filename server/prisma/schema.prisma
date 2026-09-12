@@ -12,3 +12,11 @@ model User {
   wallet    String   @unique
   createdAt DateTime @default(now())
 }
+
+model BountyMetadata {
+  id          String   @id @default(cuid())
+  bountyId    Int      @unique
+  title       String
+  description String?
+  createdAt   DateTime @default(now())
+}
