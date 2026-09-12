@@ -140,59 +140,60 @@ export function BountyCard({ bounty, connectedAddress, signer, onUpdated }: Prop
         }
     }
 
+    const statusColor = bounty.completed ? 'border-l-mint' : hasFreelancer ? 'border-l-violet' : 'border-l-gold';
+
     return (
-        <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <div className={`glass rounded-2xl border-l-4 ${statusColor} p-5`}>
             <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-400">Bounty #{bounty.id}</p>
+                <p className="text-sm text-[#9B96AE]">Bounty #{bounty.id}</p>
                 <StatusBadge completed={bounty.completed} hasFreelancer={hasFreelancer} />
             </div>
 
-            <p className="mt-1 font-mono text-lg text-cyan-300">{bounty.amount} ETH</p>
+            <p className="font-display mt-1 text-2xl text-gold">{bounty.amount} ETH</p>
 
-            <div className="mt-3 space-y-1 text-sm text-slate-400">
+            <div className="mt-3 space-y-1 text-sm text-[#9B96AE]">
                 <p>
-                    Client: <span className="font-mono text-slate-300">{bounty.client}</span>
+                    Client: <span className="font-mono text-[#F1EEE6]">{bounty.client}</span>
                 </p>
                 <p>
                     Freelancer:{' '}
-                    <span className="font-mono text-slate-300">
+                    <span className="font-mono text-[#F1EEE6]">
                         {hasFreelancer ? bounty.freelancer : 'Not assigned'}
                     </span>
                 </p>
             </div>
 
             {isFreelancer && (
-                <p className="mt-3 inline-block rounded bg-cyan-500/10 px-2 py-1 text-xs font-medium text-cyan-300">
+                <p className="mt-3 inline-block rounded-full bg-violet/10 px-3 py-1 text-xs font-medium text-violet">
                     You are the assigned freelancer
                 </p>
             )}
 
             {isClient && !hasFreelancer && !bounty.completed && (
-                <div className="mt-4 border-t border-slate-800 pt-4">
-                    <label className="text-sm text-slate-400">Freelancer address</label>
+                <div className="mt-4 border-t border-white/10 pt-4">
+                    <label className="text-sm text-[#9B96AE]">Freelancer address</label>
                     <input
                         value={freelancerInput}
                         onChange={(e) => setFreelancerInput(e.target.value)}
                         placeholder="0x..."
-                        className="mt-1 w-full rounded bg-slate-800 px-3 py-2 font-mono text-sm text-slate-100"
+                        className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-mono text-sm text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
                     />
                     <button
                         onClick={handleAssign}
                         disabled={isSubmitting}
-                        className="mt-2 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
+                        className="mt-2 rounded-lg bg-violet px-4 py-2 text-sm font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50"
                     >
                         {isSubmitting ? 'Assigning...' : 'Assign Freelancer'}
                     </button>
                 </div>
             )}
 
-            {/* Only offer single-payment release when NO milestones exist — the contract permanently blocks this once any milestone is added */}
             {isClient && hasFreelancer && !bounty.completed && !hasMilestones && (
-                <div className="mt-4 border-t border-slate-800 pt-4">
+                <div className="mt-4 border-t border-white/10 pt-4">
                     <button
                         onClick={handleRelease}
                         disabled={isSubmitting}
-                        className="rounded-lg bg-green-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-green-400 disabled:opacity-50"
+                        className="rounded-lg bg-mint px-4 py-2 text-sm font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50"
                     >
                         {isSubmitting ? 'Releasing...' : 'Release Full Payment'}
                     </button>
@@ -200,43 +201,43 @@ export function BountyCard({ bounty, connectedAddress, signer, onUpdated }: Prop
             )}
 
             {hasFreelancer && !bounty.completed && (
-                <div className="mt-4 border-t border-slate-800 pt-4">
+                <div className="mt-4 border-t border-white/10 pt-4">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-slate-200">Milestones</h3>
+                        <h3 className="text-sm font-semibold text-[#F1EEE6]">Milestones</h3>
                         {milestones.length > 0 && (
-                            <p className="text-xs text-slate-400">
+                            <p className="text-xs text-[#9B96AE]">
                                 {allocatedAmount.toFixed(4)} / {bounty.amount} ETH allocated
                             </p>
                         )}
                     </div>
 
                     {milestonesLoading ? (
-                        <p className="mt-2 text-sm text-slate-400">Loading milestones...</p>
+                        <p className="mt-2 text-sm text-[#9B96AE]">Loading milestones...</p>
                     ) : milestones.length === 0 ? (
-                        <p className="mt-2 text-sm text-slate-400">No milestones yet.</p>
+                        <p className="mt-2 text-sm text-[#9B96AE]">No milestones yet.</p>
                     ) : (
                         <div className="mt-2 space-y-2">
                             {milestones.map((m) => (
                                 <div
                                     key={m.index}
-                                    className="flex items-center justify-between rounded bg-slate-800 px-3 py-2"
+                                    className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2"
                                 >
                                     <div>
-                                        <p className="text-sm text-slate-200">{m.description}</p>
-                                        <p className="font-mono text-xs text-slate-400">{m.amount} ETH</p>
+                                        <p className="text-sm text-[#F1EEE6]">{m.description}</p>
+                                        <p className="font-mono text-xs text-[#9B96AE]">{m.amount} ETH</p>
                                     </div>
                                     {m.completed ? (
-                                        <span className="text-xs font-medium text-green-400">Paid</span>
+                                        <span className="text-xs font-medium text-mint">Paid</span>
                                     ) : isClient ? (
                                         <button
                                             onClick={() => handleApproveMilestone(m.index)}
                                             disabled={isSubmitting}
-                                            className="rounded bg-green-500 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-green-400 disabled:opacity-50"
+                                            className="rounded-lg bg-mint px-3 py-1 text-xs font-semibold text-vault-bg hover:brightness-110 disabled:opacity-50"
                                         >
                                             Approve
                                         </button>
                                     ) : (
-                                        <span className="text-xs font-medium text-yellow-400">Pending approval</span>
+                                        <span className="text-xs font-medium text-gold">Pending approval</span>
                                     )}
                                 </div>
                             ))}
@@ -249,18 +250,18 @@ export function BountyCard({ bounty, connectedAddress, signer, onUpdated }: Prop
                                 value={milestoneDescription}
                                 onChange={(e) => setMilestoneDescription(e.target.value)}
                                 placeholder="Milestone description"
-                                className="w-full rounded bg-slate-800 px-3 py-2 text-sm text-slate-100"
+                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
                             />
                             <input
                                 value={milestoneAmount}
                                 onChange={(e) => setMilestoneAmount(e.target.value)}
                                 placeholder={`Amount (up to ${remainingAmount.toFixed(4)} ETH)`}
-                                className="w-full rounded bg-slate-800 px-3 py-2 text-sm text-slate-100"
+                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
                             />
                             <button
                                 onClick={handleAddMilestone}
                                 disabled={isSubmitting}
-                                className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
+                                className="rounded-lg bg-violet px-4 py-2 text-sm font-semibold text-vault-bg hover:brightness-110 disabled:opacity-50"
                             >
                                 {isSubmitting ? 'Adding...' : 'Add Milestone'}
                             </button>
@@ -269,19 +270,19 @@ export function BountyCard({ bounty, connectedAddress, signer, onUpdated }: Prop
                 </div>
             )}
 
-            {statusMessage && <p className="mt-3 text-sm text-slate-300">{statusMessage}</p>}
+            {statusMessage && <p className="mt-3 text-sm text-[#9B96AE]">{statusMessage}</p>}
         </div>
     );
 }
 
 function StatusBadge({ completed, hasFreelancer }: { completed: boolean; hasFreelancer: boolean }) {
     if (completed) {
-        return <span className="rounded bg-green-500/10 px-2 py-1 text-xs font-medium text-green-400">Completed</span>;
+        return <span className="rounded-full bg-mint/10 px-3 py-1 text-xs font-medium text-mint">Completed</span>;
     }
     if (hasFreelancer) {
-        return <span className="rounded bg-blue-500/10 px-2 py-1 text-xs font-medium text-blue-400">In Progress</span>;
+        return <span className="rounded-full bg-violet/10 px-3 py-1 text-xs font-medium text-violet">In Progress</span>;
     }
-    return <span className="rounded bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-400">Open</span>;
+    return <span className="rounded-full bg-gold/10 px-3 py-1 text-xs font-medium text-gold">Open</span>;
 }
 
 function extractRevertReason(err: unknown): string {

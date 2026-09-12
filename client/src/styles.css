@@ -1,14 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-    font-family: 'Avenir Next', 'Segoe UI', sans-serif;
-    color-scheme: dark;
+.glass {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 body {
-    margin: 0;
-    min-width: 320px;
-    background: #020617;
+    font-family: 'Manrope', sans-serif;
+}
+
+.font-display {
+    font-family: 'Fraunces', serif;
 }

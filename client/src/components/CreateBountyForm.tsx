@@ -68,23 +68,25 @@ export function CreateBountyForm({ signer, onCreated }: Props) {
     }
 
     return (
-        <form onSubmit={handleSubmit} className="mt-8 rounded-lg border border-slate-800 bg-slate-900 p-6">
-            <div>
-                <label className="text-sm text-slate-400">Title: </label>
+        <form onSubmit={handleSubmit} className="glass mt-8 rounded-2xl p-6">
+            <h2 className="font-display text-xl">Post a bounty</h2>
+
+            <div className="mt-4">
+                <label className="text-sm text-[#9B96AE]">Title</label>
                 <input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="mt-1 w-full rounded bg-slate-800 px-3 py-2 text-slate-100"
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
                     placeholder="Build a landing page"
                 />
             </div>
 
             <div className="mt-4">
-                <label className="text-sm text-slate-400">Reward (ETH) — this actually gets escrowed on-chain</label>
+                <label className="text-sm text-[#9B96AE]">Reward (ETH) — escrowed on-chain immediately</label>
                 <input
                     value={reward}
                     onChange={(e) => setReward(e.target.value)}
-                    className="mt-1 w-full rounded bg-slate-800 px-3 py-2 text-slate-100"
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
                     placeholder="0.5"
                 />
             </div>
@@ -92,12 +94,12 @@ export function CreateBountyForm({ signer, onCreated }: Props) {
             <button
                 type="submit"
                 disabled={isSubmitting}
-                className="mt-6 rounded-lg bg-cyan-500 px-6 py-3 font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
+                className="mt-6 rounded-xl bg-gold px-6 py-3 font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50"
             >
                 {isSubmitting ? 'Creating...' : 'Create Bounty'}
             </button>
 
-            {status && <p className="mt-4 text-sm text-slate-300">{status}</p>}
+            {status && <p className="mt-4 text-sm text-[#9B96AE]">{status}</p>}
         </form>
     );
 }
