@@ -1,14 +1,19 @@
+import { useState } from 'react';
 import { useWallet } from './hooks/useWallet';
+import { useBounties } from './hooks/useBounties';
 import { CreateBountyForm } from './components/CreateBountyForm';
+import { BountyList } from './components/BountyList';
 import './styles.css';
 
 export default function App() {
     const { address, balance, signer, error, isConnecting, connect } = useWallet();
+    const [refreshKey, setRefreshKey] = useState(0);
+    const { bounties, isLoading } = useBounties(refreshKey);
 
     return (
         <main className="min-h-screen bg-slate-950 px-6 py-16 text-slate-100">
             <section className="mx-auto max-w-3xl">
-                <p className="mb-4 text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">Phase 2 wallet integration</p>
+                <p className="mb-4 text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">Phase 3 — reading bounties</p>
                 <h1 className="text-5xl font-semibold tracking-tight">BountyBoard</h1>
                 <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
                     The workspace is ready for the marketplace UI, REST API, and escrow contract to arrive in separate phases.
@@ -34,7 +39,20 @@ export default function App() {
 
                     {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
 
-                    {signer && <CreateBountyForm signer={signer} />}
+                    {signer && (
+                        <CreateBountyForm
+                            signer={signer}
+                            onCreated={() => setRefreshKey((k) => k + 1)}
+                        />
+                    )}
+
+                    <BountyList
+                        bounties={bounties}
+                        isLoading={isLoading}
+                        connectedAddress={address}
+                        signer={signer}
+                        onUpdated={() => setRefreshKey((k) => k + 1)}
+                    />
                 </div>
             </section>
         </main>

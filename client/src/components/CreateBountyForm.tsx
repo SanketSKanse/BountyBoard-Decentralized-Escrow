@@ -5,6 +5,7 @@ import { BOUNTY_BOARD_CHAIN_ID, BOUNTY_ESCROW_ADDRESS } from '../contracts/confi
 
 type Props = {
     signer: JsonRpcSigner;
+    onCreated: () => void;
 };
 
 function getErrorMessage(error: unknown) {
@@ -15,7 +16,7 @@ function getErrorMessage(error: unknown) {
     return 'Unknown wallet or contract error.';
 }
 
-export function CreateBountyForm({ signer }: Props) {
+export function CreateBountyForm({ signer, onCreated }: Props) {
     const [title, setTitle] = useState('');
     const [reward, setReward] = useState('');
     const [status, setStatus] = useState<string | null>(null);
@@ -55,6 +56,7 @@ export function CreateBountyForm({ signer }: Props) {
             await tx.wait(); // waits for the transaction to be mined into a block
 
             setStatus(`Bounty created! Tx hash: ${tx.hash}`);
+            onCreated();
             setTitle('');
             setReward('');
         } catch (err) {
