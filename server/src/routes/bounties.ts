@@ -28,6 +28,11 @@ bountiesRouter.post('/:bountyId/metadata', async (req, res) => {
 
 // Called by the frontend to merge titles into the on-chain bounty list.
 bountiesRouter.get('/metadata', async (_req, res) => {
-    const all = await prisma.bountyMetadata.findMany();
-    res.json(all);
+    try {
+        const all = await prisma.bountyMetadata.findMany();
+        res.json(all);
+    } catch (err) {
+        console.error('Failed to get bounty metadata:', err);
+        res.status(500).json({ error: 'Failed to retrieve bounty metadata' });
+    }
 });

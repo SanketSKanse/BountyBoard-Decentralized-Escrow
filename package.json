@@ -16,7 +16,8 @@
         "dev:chain": "npm run node --workspace contracts",
         "deploy:local": "npm run deploy:local --workspace contracts",
         "db:generate": "npm run db:generate --workspace server",
-        "db:push": "npm run db:push --workspace server"
+        "db:push": "npm run db:push --workspace server",
+        "db:migrate": "npm run db:migrate --workspace server"
     },
     "devDependencies": {
         "concurrently": "^9.1.2"

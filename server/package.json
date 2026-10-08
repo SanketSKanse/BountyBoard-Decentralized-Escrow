@@ -5,8 +5,11 @@
     "type": "module",
     "scripts": {
         "dev": "tsx watch src/server.ts",
-        "build": "tsc",
-        "start": "node dist/server.js"
+        "build": "prisma generate && tsc",
+        "start": "node dist/server.js",
+        "typecheck": "tsc --noEmit",
+        "db:generate": "prisma generate",
+        "db:migrate": "prisma migrate deploy"
     },
     "dependencies": {
         "@prisma/adapter-pg": "^7.10.0",

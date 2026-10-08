@@ -1,5 +1,4 @@
-export const BOUNTY_ESCROW_ADDRESS =
-    "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+export { BOUNTY_ESCROW_ADDRESS } from './config';
 
 export const BOUNTY_ESCROW_ABI = [
     "function createBounty() payable",
