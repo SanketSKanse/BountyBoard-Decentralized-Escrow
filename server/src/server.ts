@@ -1,8 +1,7 @@
 import './env.js';
-import express from "express";
+import express, { type Request, type Response } from "express";
 import cors from "cors";
 import { bountiesRouter } from './routes/bounties.js';
-
 
 const app = express();
 
@@ -17,7 +16,7 @@ const allowedOrigins = [
 ].filter(Boolean) as string[];
 
 app.use(cors({
-  origin: (origin, callback) => {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
@@ -40,20 +39,20 @@ app.use(cors({
 app.use(express.json());
 app.use('/api/bounties', bountiesRouter);
 
-app.get("/", (_req, res) => {
+app.get("/", (_req: Request, res: Response) => {
   res.json({
     message: "BountyBoard API is running",
   });
 });
 
-app.get("/health", (_req, res) => {
+app.get("/health", (_req: Request, res: Response) => {
   res.json({
     status: "ok",
     service: "BountyBoard API",
   });
 });
 
-app.get("/api/health", (_req, res) => {
+app.get("/api/health", (_req: Request, res: Response) => {
   res.json({
     status: "ok",
     service: "BountyBoard API",

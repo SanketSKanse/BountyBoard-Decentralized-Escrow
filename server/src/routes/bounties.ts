@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { prisma } from '../db.js';
 
 export const bountiesRouter = Router();
 
 // Called right after the frontend confirms a createBounty transaction,
 // to attach the title/description the contract itself never stored.
-bountiesRouter.post('/:bountyId/metadata', async (req, res) => {
+bountiesRouter.post('/:bountyId/metadata', async (req: Request, res: Response) => {
     const bountyId = Number(req.params.bountyId);
     const { title, description } = req.body;
 
@@ -27,7 +27,7 @@ bountiesRouter.post('/:bountyId/metadata', async (req, res) => {
 });
 
 // Called by the frontend to merge titles into the on-chain bounty list.
-bountiesRouter.get('/metadata', async (_req, res) => {
+bountiesRouter.get('/metadata', async (_req: Request, res: Response) => {
     try {
         const all = await prisma.bountyMetadata.findMany();
         res.json(all);
