@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+
+echo "🛡️  Running pre-push quality gates..."
+echo "🔍 Executing smart contract test suite before push..."
+
+if ! npm run test:contracts; then
+    echo "❌ Push aborted: Smart contract tests failed. Fix tests before pushing to remote."
+    exit 1
+fi
+
+echo "✅ Smart contract tests passed. Pushing to remote..."

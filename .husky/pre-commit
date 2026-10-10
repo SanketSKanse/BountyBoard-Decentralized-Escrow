@@ -1,0 +1,31 @@
+#!/usr/bin/env sh
+
+echo "🛡️  Running pre-commit quality gates..."
+
+# 1. Secret Leak Guard
+echo "🔍 Checking for sensitive files and secret leaks in staged changes..."
+
+# Check for staged .env files (excluding safe .env.example files)
+staged_env_files=$(git diff --cached --name-only | grep -E '(^|/)\.env($|\..*)' | grep -v '\.env\.example$' || true)
+if [ -n "$staged_env_files" ]; then
+    echo "❌ Commit rejected: Attempting to commit environment files containing potential secrets:"
+    echo "$staged_env_files"
+    echo "Please unstage these files before committing."
+    exit 1
+fi
+
+# Check for staged private keys (hex patterns 0x[a-fA-F0-9]{64}) in added lines
+if git diff --cached -U0 | grep -E -q '^\+[^+].*0x[a-fA-F0-9]{64}'; then
+    echo "❌ Commit rejected: Detected possible private key pattern (0x[a-fA-F0-9]{64}) in staged changes."
+    echo "Please ensure you are not committing raw private keys or credentials."
+    exit 1
+fi
+
+# 2. Workspace Typecheck
+echo "🔍 Running workspace TypeScript verification across all packages..."
+if ! npm run typecheck; then
+    echo "❌ Commit rejected: TypeScript check failed. Please resolve all type errors before committing."
+    exit 1
+fi
+
+echo "✅ Pre-commit quality checks passed successfully!"

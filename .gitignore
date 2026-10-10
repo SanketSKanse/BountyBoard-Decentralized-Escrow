@@ -13,10 +13,17 @@ typechain-types/
 # Dependencies
 node_modules/
 
-# Environment variables
+# Environment variables and secrets
 .env
 .env.local
 .env.*.local
+*.key
+*.pem
+*.keystore
+*keystore.json
+*.seed
+keys/
+secrets/
 
 # Build output
 dist/
