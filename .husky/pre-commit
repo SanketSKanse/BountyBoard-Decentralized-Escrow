@@ -15,7 +15,7 @@ if [ -n "$staged_env_files" ]; then
 fi
 
 # Check for staged private keys (hex patterns 0x[a-fA-F0-9]{64}) in added lines
-if git diff --cached -U0 | grep -E -q '^\+[^+].*0x[a-fA-F0-9]{64}'; then
+if git diff --cached | grep -E '^\+[^+]' | grep -E -q '0x[a-fA-F0-9]{64}'; then
     echo "❌ Commit rejected: Detected possible private key pattern (0x[a-fA-F0-9]{64}) in staged changes."
     echo "Please ensure you are not committing raw private keys or credentials."
     exit 1
