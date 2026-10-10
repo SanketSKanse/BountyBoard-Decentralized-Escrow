@@ -16,27 +16,36 @@ export function useMilestones(bountyId: number, refreshKey: number) {
 
     useEffect(() => {
         async function fetchMilestones() {
-            if (!window.ethereum) return;
+            if (!window.ethereum) {
+                setIsLoading(false);
+                return;
+            }
             setIsLoading(true);
 
-            const provider = new BrowserProvider(window.ethereum);
-            const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, provider);
+            try {
+                const provider = new BrowserProvider(window.ethereum);
+                const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, provider);
 
-            const count = await contract.getMilestoneCount(bountyId);
-            const results: Milestone[] = [];
+                const count = await contract.getMilestoneCount(bountyId);
+                const results: Milestone[] = [];
 
-            for (let i = 0; i < Number(count); i++) {
-                const m = await contract.milestones(bountyId, i);
-                results.push({
-                    index: i,
-                    description: m.description,
-                    amount: formatEther(m.amount),
-                    completed: m.completed,
-                });
+                for (let i = 0; i < Number(count); i++) {
+                    const m = await contract.milestones(bountyId, i);
+                    results.push({
+                        index: i,
+                        description: m.description,
+                        amount: formatEther(m.amount),
+                        completed: m.completed,
+                    });
+                }
+
+                setMilestones(results);
+            } catch (err) {
+                console.error('Failed to fetch milestones:', err);
+                setMilestones([]);
+            } finally {
+                setIsLoading(false);
             }
-
-            setMilestones(results);
-            setIsLoading(false);
         }
 
         fetchMilestones();

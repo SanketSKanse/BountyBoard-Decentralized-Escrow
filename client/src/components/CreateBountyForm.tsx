@@ -72,9 +72,10 @@ export function CreateBountyForm({ signer, onCreated }: Props) {
             setTitle('');
             setReward('');
             onCreated();
-        } catch (err) {
-            console.error(err);
-            setStatus('Transaction failed or was rejected.');
+        } catch (err: any) {
+            console.error('Create bounty error:', err);
+            const msg = extractContractError(err);
+            setStatus(`Failed: ${msg}`);
         } finally {
             setIsSubmitting(false);
         }
@@ -116,4 +117,25 @@ export function CreateBountyForm({ signer, onCreated }: Props) {
         </form>
     );
 }
-// </parameter>
+
+function extractContractError(err: any): string {
+    if (!err) return 'Transaction failed or was rejected.';
+    if (err?.code === 'ACTION_REJECTED' || err?.code === 4001) {
+        return 'Transaction was rejected in MetaMask.';
+    }
+
+    const rawMsg =
+        err?.error?.message ||
+        err?.info?.error?.message ||
+        err?.data?.message ||
+        (err?.shortMessage && err.shortMessage !== 'could not coalesce error' ? err.shortMessage : null) ||
+        err?.reason ||
+        err?.message ||
+        'Transaction failed or was rejected.';
+
+    if (typeof rawMsg === 'string' && rawMsg.includes('Chain must support EIP-7702')) {
+        return 'MetaMask Smart Account issue: Your account has Smart Account (EIP-7702) mode enabled. Please open MetaMask > click 3 dots next to account > Account Details > toggle OFF "Smart account" (revert to Standard account) because Base Sepolia testnet does not support EIP-7702.';
+    }
+
+    return String(rawMsg);
+}

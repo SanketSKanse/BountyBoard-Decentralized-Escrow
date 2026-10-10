@@ -286,9 +286,24 @@ function StatusBadge({ completed, hasFreelancer }: { completed: boolean; hasFree
     return <span className="rounded-full bg-gold/10 px-3 py-1 text-xs font-medium text-gold">Open</span>;
 }
 
-function extractRevertReason(err: unknown): string {
-    if (err && typeof err === 'object' && 'reason' in err && typeof err.reason === 'string') {
-        return err.reason;
+function extractRevertReason(err: any): string {
+    if (!err) return 'Transaction failed or was rejected.';
+    if (err?.code === 'ACTION_REJECTED' || err?.code === 4001) {
+        return 'Transaction was rejected in MetaMask.';
     }
-    return 'Transaction failed or was rejected.';
+
+    const rawMsg =
+        err?.error?.message ||
+        err?.info?.error?.message ||
+        err?.data?.message ||
+        (err?.shortMessage && err.shortMessage !== 'could not coalesce error' ? err.shortMessage : null) ||
+        err?.reason ||
+        err?.message ||
+        'Transaction failed or was rejected.';
+
+    if (typeof rawMsg === 'string' && rawMsg.includes('Chain must support EIP-7702')) {
+        return 'MetaMask Smart Account issue: Please toggle off "Smart account" in MetaMask Account Details because Base Sepolia testnet does not support EIP-7702 delegations.';
+    }
+
+    return String(rawMsg);
 }

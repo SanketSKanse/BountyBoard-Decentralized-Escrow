@@ -19,39 +19,50 @@ export function useBounties(refreshKey: number) {
 
     useEffect(() => {
         async function fetchBounties() {
-            if (!window.ethereum) return;
+            if (!window.ethereum) {
+                setIsLoading(false);
+                return;
+            }
             setIsLoading(true);
 
-            const provider = new BrowserProvider(window.ethereum);
-            const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, provider);
-
-            const count = await contract.bountyCount();
-
-            // Fetch all off-chain titles in one request, rather than one per bounty
-            let metadataMap = new Map<number, string>();
             try {
-                const res = await fetch(`${API_BASE_URL}/bounties/metadata`);
-                const metadataList = await res.json();
-                metadataMap = new Map(metadataList.map((m: any) => [m.bountyId, m.title]));
+                const provider = new BrowserProvider(window.ethereum);
+                const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, provider);
+
+                const count = await contract.bountyCount();
+
+                // Fetch all off-chain titles in one request
+                let metadataMap = new Map<number, string>();
+                try {
+                    const res = await fetch(`${API_BASE_URL}/bounties/metadata`);
+                    if (res.ok) {
+                        const metadataList = await res.json();
+                        metadataMap = new Map(metadataList.map((m: any) => [m.bountyId, m.title]));
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch bounty metadata', err);
+                }
+
+                const results: Bounty[] = [];
+                for (let id = 1; id <= Number(count); id++) {
+                    const b = await contract.bounties(id);
+                    results.push({
+                        id,
+                        client: b.client,
+                        freelancer: b.freelancer,
+                        amount: formatEther(b.amount),
+                        completed: b.completed,
+                        title: metadataMap.get(id) || 'Untitled bounty',
+                    });
+                }
+
+                setBounties(results.reverse());
             } catch (err) {
-                console.error('Failed to fetch bounty metadata', err);
+                console.error('Failed to fetch bounties:', err);
+                setBounties([]);
+            } finally {
+                setIsLoading(false);
             }
-
-            const results: Bounty[] = [];
-            for (let id = 1; id <= Number(count); id++) {
-                const b = await contract.bounties(id);
-                results.push({
-                    id,
-                    client: b.client,
-                    freelancer: b.freelancer,
-                    amount: formatEther(b.amount),
-                    completed: b.completed,
-                    title: metadataMap.get(id) || 'Untitled bounty',
-                });
-            }
-
-            setBounties(results.reverse());
-            setIsLoading(false);
         }
 
         fetchBounties();
