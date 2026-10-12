@@ -15,18 +15,19 @@ export default defineConfig({
         hardhat: {
             type: 'edr-simulated',
         },
-        localhost: {
+        baseSepolia: {
             type: 'http',
-            url: process.env.RPC_URL ?? 'http://127.0.0.1:8545',
+            url: process.env.BASE_SEPOLIA_RPC_URL ?? 'https://sepolia.base.org',
+            accounts,
+        },
+        optimismSepolia: {
+            type: 'http',
+            url: process.env.OP_SEPOLIA_RPC_URL ?? 'https://sepolia.optimism.io',
+            accounts,
         },
         sepolia: {
             type: 'http',
             url: process.env.SEPOLIA_RPC_URL ?? 'https://rpc.sepolia.org',
-            accounts,
-        },
-        baseSepolia: {
-            type: 'http',
-            url: process.env.BASE_SEPOLIA_RPC_URL ?? 'https://sepolia.base.org',
             accounts,
         },
     },
