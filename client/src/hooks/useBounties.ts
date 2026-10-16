@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { BrowserProvider, Contract, formatEther } from 'ethers';
+import { BrowserProvider, JsonRpcProvider, Contract, formatEther } from 'ethers';
 import BountyEscrowArtifact from '../contracts/BountyEscrow.json';
-import { BOUNTY_ESCROW_ADDRESS } from '../contracts/config';
+import { BOUNTY_ESCROW_ADDRESS, getNetworkConfig } from '../contracts/config';
 import { API_BASE_URL } from '../config';
 
 export type Bounty = {
@@ -9,8 +9,11 @@ export type Bounty = {
     client: string;
     freelancer: string;
     amount: string;
+    remainingBalance: string;
+    status: number;
     completed: boolean;
     title: string;
+    arbiter: string;
 };
 
 export function useBounties(refreshKey: number) {
@@ -19,15 +22,24 @@ export function useBounties(refreshKey: number) {
 
     useEffect(() => {
         async function fetchBounties() {
-            if (!window.ethereum) {
-                setIsLoading(false);
-                return;
-            }
             setIsLoading(true);
 
             try {
-                const provider = new BrowserProvider(window.ethereum);
+                let provider: BrowserProvider | JsonRpcProvider;
+                if (window.ethereum) {
+                    provider = new BrowserProvider(window.ethereum);
+                } else {
+                    provider = new JsonRpcProvider(getNetworkConfig().rpcUrl);
+                }
+
                 const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, provider);
+
+                let arbiterAddress = '';
+                try {
+                    arbiterAddress = await contract.arbiter();
+                } catch {
+                    // Fallback if arbiter call fails on older deployment
+                }
 
                 const count = await contract.bountyCount();
 
@@ -46,13 +58,17 @@ export function useBounties(refreshKey: number) {
                 const results: Bounty[] = [];
                 for (let id = 1; id <= Number(count); id++) {
                     const b = await contract.bounties(id);
+                    const statusNum = Number(b.status ?? (b.completed ? 3 : 0));
                     results.push({
                         id,
                         client: b.client,
                         freelancer: b.freelancer,
                         amount: formatEther(b.amount),
-                        completed: b.completed,
+                        remainingBalance: b.remainingBalance !== undefined ? formatEther(b.remainingBalance) : formatEther(b.amount),
+                        status: statusNum,
+                        completed: statusNum === 3 || Boolean(b.completed),
                         title: metadataMap.get(id) || 'Untitled bounty',
+                        arbiter: arbiterAddress,
                     });
                 }
 
