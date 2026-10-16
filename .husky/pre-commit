@@ -2,30 +2,29 @@
 
 echo "🛡️  Running pre-commit quality gates..."
 
-# 1. Secret Leak Guard
-echo "🔍 Checking for sensitive files and secret leaks in staged changes..."
+# 1. Secret & Key Leak Scanner
+echo "🔍 Scanning staged changes for secret leaks and .env files..."
 
-# Check for staged .env files (excluding safe .env.example files)
-staged_env_files=$(git diff --cached --name-only | grep -E '(^|/)\.env($|\..*)' | grep -v '\.env\.example$' || true)
-if [ -n "$staged_env_files" ]; then
-    echo "❌ Commit rejected: Attempting to commit environment files containing potential secrets:"
-    echo "$staged_env_files"
-    echo "Please unstage these files before committing."
+# Check for accidentally staged .env files (excluding .env.example)
+staged_env=$(git diff --cached --name-only | grep -E '(\.env($|\..*)|(^|/)\.env)' | grep -v '\.env\.example$' || true)
+if [ -n "$staged_env" ]; then
+    echo "❌ COMMIT REJECTED: Leaked private key or .env file detected! Never commit secrets to GitHub."
+    echo "Accidentally staged environment file(s):"
+    echo "$staged_env"
     exit 1
 fi
 
-# Check for staged private keys (hex patterns 0x[a-fA-F0-9]{64}) in added lines
-if git diff --cached | grep -E '^\+[^+]' | grep -E -q '0x[a-fA-F0-9]{64}'; then
-    echo "❌ Commit rejected: Detected possible private key pattern (0x[a-fA-F0-9]{64}) in staged changes."
-    echo "Please ensure you are not committing raw private keys or credentials."
+# Check for staged private keys (64-character hex patterns) in added lines
+if git diff --cached | grep -E '^\+[^+]' | grep -E -iq '(^|[^a-f0-9])(0x)?[a-f0-9]{64}([^a-f0-9]|$)'; then
+    echo "❌ COMMIT REJECTED: Leaked private key or .env file detected! Never commit secrets to GitHub."
     exit 1
 fi
 
-# 2. Workspace Typecheck
-echo "🔍 Running workspace TypeScript verification across all packages..."
+# 2. Typecheck Gate
+echo "🔍 Running TypeScript verification across client, server, and contracts..."
 if ! npm run typecheck; then
-    echo "❌ Commit rejected: TypeScript check failed. Please resolve all type errors before committing."
+    echo "❌ COMMIT REJECTED: TypeScript compilation errors found! Fix typecheck errors before committing."
     exit 1
 fi
 
-echo "✅ Pre-commit quality checks passed successfully!"
+echo "✅ Pre-commit verification passed successfully!"

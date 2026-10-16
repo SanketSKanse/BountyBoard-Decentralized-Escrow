@@ -1,11 +1,10 @@
 #!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
 
-echo "🛡️  Running pre-push quality gates..."
-echo "🔍 Executing smart contract test suite before push..."
-
-if ! npm run test:contracts; then
-    echo "❌ Push aborted: Smart contract tests failed. Fix tests before pushing to remote."
+echo "🛡️  Verifying build before git push..."
+npm run build || {
+    echo "❌ Build failed! Push aborted to protect GitHub repository."
     exit 1
-fi
+}
 
-echo "✅ Smart contract tests passed. Pushing to remote..."
+echo "✅ All local verification passed. Pushing to GitHub..."

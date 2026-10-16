@@ -15,6 +15,7 @@
         "test:contracts": "npm run test --workspace contracts",
         "deploy:base": "npm run deploy:base --workspace contracts",
         "deploy:op": "npm run deploy:op --workspace contracts",
+        "deploy:browser": "npm run deploy:browser --workspace contracts",
         "deploy:sepolia": "npm run deploy:sepolia --workspace contracts",
         "deploy:base-sepolia": "npm run deploy:base-sepolia --workspace contracts",
         "deploy:ui": "npm run deploy:ui --workspace contracts",

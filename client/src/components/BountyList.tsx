@@ -7,10 +7,11 @@ type Props = {
     isLoading: boolean;
     connectedAddress: string | null;
     signer: JsonRpcSigner | null;
+    chainId?: bigint | null;
     onUpdated: () => void;
 };
 
-export function BountyList({ bounties, isLoading, connectedAddress, signer, onUpdated }: Props) {
+export function BountyList({ bounties, isLoading, connectedAddress, signer, chainId, onUpdated }: Props) {
     if (isLoading) return <p className="mt-8 text-slate-400">Loading bounties...</p>;
 
     if (bounties.length === 0) {
@@ -18,7 +19,7 @@ export function BountyList({ bounties, isLoading, connectedAddress, signer, onUp
     }
 
     return (
-        <div className="mt-8 space-y-3">
+        <div className="mt-8 space-y-4">
             <h2 className="text-lg font-semibold text-slate-200">Bounties</h2>
             {bounties.map((b) => (
                 <BountyCard
@@ -26,6 +27,7 @@ export function BountyList({ bounties, isLoading, connectedAddress, signer, onUp
                     bounty={b}
                     connectedAddress={connectedAddress}
                     signer={signer}
+                    chainId={chainId}
                     onUpdated={onUpdated}
                 />
             ))}

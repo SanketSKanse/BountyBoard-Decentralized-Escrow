@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import { Contract, parseEther, type JsonRpcSigner } from 'ethers';
 import BountyEscrowArtifact from '../contracts/BountyEscrow.json';
-import { BOUNTY_ESCROW_ADDRESS } from '../contracts/config';
+import { BOUNTY_ESCROW_ADDRESS, getExplorerTxUrl } from '../contracts/config';
 import { API_BASE_URL } from '../config';
 
 type Props = {
     signer: JsonRpcSigner;
+    chainId?: bigint | null;
     onCreated: () => void;
 };
 
-export function CreateBountyForm({ signer, onCreated }: Props) {
+export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
     const [title, setTitle] = useState('');
     const [reward, setReward] = useState('');
-    const [status, setStatus] = useState<string | null>(null);
+    const [status, setStatus] = useState<React.ReactNode | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     async function handleSubmit(e: React.FormEvent) {
@@ -68,7 +69,19 @@ export function CreateBountyForm({ signer, onCreated }: Props) {
                 console.warn('Could not extract bountyId from transaction receipt — title will not be saved.');
             }
 
-            setStatus(`Bounty created! Tx hash: ${tx.hash}`);
+            setStatus(
+                <span>
+                    Bounty created successfully!{' '}
+                    <a
+                        href={getExplorerTxUrl(tx.hash, chainId)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline text-gold hover:text-white"
+                    >
+                        View Tx on Explorer
+                    </a>
+                </span>
+            );
             setTitle('');
             setReward('');
             onCreated();
@@ -113,7 +126,7 @@ export function CreateBountyForm({ signer, onCreated }: Props) {
                 {isSubmitting ? 'Creating...' : 'Create Bounty'}
             </button>
 
-            {status && <p className="mt-4 text-sm text-[#9B96AE]">{status}</p>}
+            {status && <div className="mt-4 text-sm text-[#9B96AE]">{status}</div>}
         </form>
     );
 }
