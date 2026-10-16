@@ -7,10 +7,11 @@
         "compile": "hardhat compile",
         "test": "hardhat test",
         "typecheck": "tsc -p tsconfig.json --noEmit",
-        "deploy:base": "hardhat run scripts/deploy.ts --network baseSepolia",
-        "deploy:op": "hardhat run scripts/deploy.ts --network optimismSepolia",
-        "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
-        "deploy:base-sepolia": "hardhat run scripts/deploy.ts --network baseSepolia",
+        "deploy:base": "hardhat run scripts/deployOnChain.ts --network baseSepolia",
+        "deploy:op": "hardhat run scripts/deployOnChain.ts --network optimismSepolia",
+        "deploy:browser": "npx thirdweb deploy",
+        "deploy:sepolia": "hardhat run scripts/deployOnChain.ts --network sepolia",
+        "deploy:base-sepolia": "hardhat run scripts/deployOnChain.ts --network baseSepolia",
         "deploy:ui": "npx thirdweb deploy"
     },
     "devDependencies": {

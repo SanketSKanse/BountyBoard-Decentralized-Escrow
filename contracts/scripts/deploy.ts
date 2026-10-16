@@ -24,8 +24,11 @@ async function main() {
         console.warn("⚠️ Warning: Deployer balance is 0 ETH. Transaction may fail if gas cannot be paid.");
     }
 
+    const arbiterAddress = process.env.ARBITER_ADDRESS?.trim() || deployer.address;
+    console.log("Arbiter Address:", arbiterAddress);
+
     const BountyEscrow = await ethers.getContractFactory("BountyEscrow");
-    const bountyEscrow = await BountyEscrow.deploy();
+    const bountyEscrow = await BountyEscrow.deploy(arbiterAddress);
 
     console.log("Waiting for contract deployment transaction...");
     await bountyEscrow.waitForDeployment();
