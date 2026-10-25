@@ -14,9 +14,27 @@ model User {
 }
 
 model BountyMetadata {
-  id          String   @id @default(cuid())
-  bountyId    Int      @unique
-  title       String
-  description String?
-  createdAt   DateTime @default(now())
+  id            String     @id @default(cuid())
+  bountyId      Int        @unique
+  title         String
+  description   String?
+  category      String     @default("General")
+  skills        String?    // Comma-separated skill tags, e.g. "Solidity,React,Ethers.js"
+  disputeReason String?
+  createdAt     DateTime   @default(now())
+  proposals     Proposal[]
+}
+
+model Proposal {
+  id                String         @id @default(cuid())
+  bountyId          Int
+  freelancerAddress String
+  coverLetter       String
+  timelineDays      Int            @default(7)
+  portfolioUrl      String?
+  status            String         @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  createdAt         DateTime       @default(now())
+  bounty            BountyMetadata @relation(fields: [bountyId], references: [bountyId], onDelete: Cascade)
+
+  @@unique([bountyId, freelancerAddress])
 }
