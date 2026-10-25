@@ -786,4 +786,355 @@ describe("BountyEscrow", function () {
             }
         });
     });
+
+    describe("Work Submission (submitWork)", function () {
+        it("should allow the assigned freelancer to submit deliverable URI and emit WorkSubmitted", async function () {
+            const { ethers, bountyEscrow, freelancer } = await deployFixture();
+            const bountyAmount = ethers.parseEther("2");
+            const deliverableUri = "ipfs://bafybeicdeliverableproof123";
+
+            await (await bountyEscrow.createBounty({ value: bountyAmount })).wait();
+            await (await bountyEscrow.assignFreelancer(1, freelancer.address)).wait();
+
+            const tx = await (bountyEscrow.connect(freelancer) as typeof bountyEscrow).submitWork(
+                1,
+                deliverableUri
+            );
+            const receipt = await tx.wait();
+
+            expect(await bountyEscrow.bountyDeliverables(1)).to.equal(deliverableUri);
+            const submittedAt = await bountyEscrow.bountySubmittedAt(1);
+            expect(submittedAt > 0n).to.be.true;
+
+            const event = findParsedEvent(receipt, bountyEscrow, "WorkSubmitted");
+            expect(event).to.not.be.null;
+            expect(event?.args[0]).to.equal(1n);
+            expect(event?.args[1]).to.equal(freelancer.address);
+            expect(event?.args[2]).to.equal(deliverableUri);
+            expect(event?.args[3]).to.equal(submittedAt);
+        });
+
+        it("should reject empty deliverable URI", async function () {
+            const { ethers, bountyEscrow, freelancer } = await deployFixture();
+            const bountyAmount = ethers.parseEther("1");
+
+            await (await bountyEscrow.createBounty({ value: bountyAmount })).wait();
+            await (await bountyEscrow.assignFreelancer(1, freelancer.address)).wait();
+
+            try {
+                await (bountyEscrow.connect(freelancer) as typeof bountyEscrow).submitWork(1, "");
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Deliverable URI cannot be empty");
+            }
+        });
+
+        it("should reject submission from non-freelancer", async function () {
+            const { ethers, bountyEscrow, freelancer, attacker } = await deployFixture();
+            const bountyAmount = ethers.parseEther("1");
+
+            await (await bountyEscrow.createBounty({ value: bountyAmount })).wait();
+            await (await bountyEscrow.assignFreelancer(1, freelancer.address)).wait();
+
+            // Client attempts to submit work
+            try {
+                await bountyEscrow.submitWork(1, "ipfs://proof");
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Only assigned freelancer can submit work");
+            }
+
+            // Attacker attempts to submit work
+            try {
+                await (bountyEscrow.connect(attacker) as typeof bountyEscrow).submitWork(1, "ipfs://proof");
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Only assigned freelancer can submit work");
+            }
+        });
+
+        it("should reject work submission when bounty is not Assigned", async function () {
+            const { ethers, bountyEscrow, freelancer } = await deployFixture();
+            const bountyAmount = ethers.parseEther("1");
+
+            await (await bountyEscrow.createBounty({ value: bountyAmount })).wait();
+
+            try {
+                await (bountyEscrow.connect(freelancer) as typeof bountyEscrow).submitWork(1, "ipfs://proof");
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Bounty is not assigned");
+            }
+        });
+
+        it("should reject work submission with invalid bounty ID", async function () {
+            const { bountyEscrow, freelancer } = await deployFixture();
+
+            try {
+                await (bountyEscrow.connect(freelancer) as typeof bountyEscrow).submitWork(999, "ipfs://proof");
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Invalid bounty ID");
+            }
+        });
+    });
+
+    describe("Deadlines & Expired Refunds (setDeadline & claimExpiredRefund)", function () {
+        it("should create bounty with deadline via createBountyWithDeadline", async function () {
+            const { ethers, bountyEscrow } = await deployFixture();
+            const bountyAmount = ethers.parseEther("2");
+            const block = await ethers.provider.getBlock("latest");
+            const futureDeadline = BigInt(block!.timestamp + 3600);
+
+            const tx = await bountyEscrow.createBountyWithDeadline(futureDeadline, {
+                value: bountyAmount,
+            });
+            const receipt = await tx.wait();
+
+            expect(await bountyEscrow.bountyCount()).to.equal(1n);
+            expect(await bountyEscrow.bountyDeadlines(1)).to.equal(futureDeadline);
+
+            const event = findParsedEvent(receipt, bountyEscrow, "DeadlineUpdated");
+            expect(event).to.not.be.null;
+            expect(event?.args[0]).to.equal(1n);
+            expect(event?.args[1]).to.equal(futureDeadline);
+        });
+
+        it("should reject createBountyWithDeadline with deadline in the past", async function () {
+            const { ethers, bountyEscrow } = await deployFixture();
+            const block = await ethers.provider.getBlock("latest");
+            const pastDeadline = BigInt(block!.timestamp - 60);
+
+            try {
+                await bountyEscrow.createBountyWithDeadline(pastDeadline, {
+                    value: ethers.parseEther("1"),
+                });
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Deadline must be in the future");
+            }
+        });
+
+        it("should allow client to set a future deadline and emit DeadlineUpdated", async function () {
+            const { ethers, bountyEscrow } = await deployFixture();
+            await (await bountyEscrow.createBounty({ value: ethers.parseEther("1") })).wait();
+
+            const block = await ethers.provider.getBlock("latest");
+            const futureDeadline = BigInt(block!.timestamp + 7200);
+
+            const tx = await bountyEscrow.setDeadline(1, futureDeadline);
+            const receipt = await tx.wait();
+
+            expect(await bountyEscrow.bountyDeadlines(1)).to.equal(futureDeadline);
+
+            const event = findParsedEvent(receipt, bountyEscrow, "DeadlineUpdated");
+            expect(event).to.not.be.null;
+            expect(event?.args[0]).to.equal(1n);
+            expect(event?.args[1]).to.equal(futureDeadline);
+        });
+
+        it("should reject setDeadline if deadline is in the past", async function () {
+            const { ethers, bountyEscrow } = await deployFixture();
+            await (await bountyEscrow.createBounty({ value: ethers.parseEther("1") })).wait();
+
+            const block = await ethers.provider.getBlock("latest");
+            const pastDeadline = BigInt(block!.timestamp - 100);
+
+            try {
+                await bountyEscrow.setDeadline(1, pastDeadline);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Deadline must be in the future");
+            }
+        });
+
+        it("should reject setDeadline if caller is not client", async function () {
+            const { ethers, bountyEscrow, attacker } = await deployFixture();
+            await (await bountyEscrow.createBounty({ value: ethers.parseEther("1") })).wait();
+
+            const block = await ethers.provider.getBlock("latest");
+            const futureDeadline = BigInt(block!.timestamp + 3600);
+
+            try {
+                await (bountyEscrow.connect(attacker) as typeof bountyEscrow).setDeadline(1, futureDeadline);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Only client can set deadline");
+            }
+        });
+
+        it("should reject setDeadline if bounty is completed or cancelled", async function () {
+            const { ethers, bountyEscrow } = await deployFixture();
+            await (await bountyEscrow.createBounty({ value: ethers.parseEther("1") })).wait();
+            await (await bountyEscrow.cancelBounty(1)).wait();
+
+            const block = await ethers.provider.getBlock("latest");
+            const futureDeadline = BigInt(block!.timestamp + 3600);
+
+            try {
+                await bountyEscrow.setDeadline(1, futureDeadline);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Cannot set deadline in current status");
+            }
+        });
+
+        it("should allow client to claim expired refund if deadline passed and no work was submitted", async function () {
+            const { ethers, bountyEscrow, client, freelancer } = await deployFixture();
+            const bountyAmount = ethers.parseEther("3");
+
+            await (await bountyEscrow.createBounty({ value: bountyAmount })).wait();
+            await (await bountyEscrow.assignFreelancer(1, freelancer.address)).wait();
+
+            const block = await ethers.provider.getBlock("latest");
+            const deadline = BigInt(block!.timestamp + 1000);
+            await (await bountyEscrow.setDeadline(1, deadline)).wait();
+
+            // Advance time past deadline
+            await ethers.provider.send("evm_increaseTime", [1001]);
+            await ethers.provider.send("evm_mine", []);
+
+            const clientBalanceBefore = await ethers.provider.getBalance(client.address);
+            const tx = await bountyEscrow.claimExpiredRefund(1);
+            const receipt = await tx.wait();
+            const gasCost = BigInt(receipt!.gasUsed) * BigInt(receipt!.gasPrice ?? 0n);
+            const clientBalanceAfter = await ethers.provider.getBalance(client.address);
+
+            // Verify full remaining refund received
+            expect(clientBalanceAfter - clientBalanceBefore + gasCost).to.equal(bountyAmount);
+
+            // Verify status and balance updated
+            const bounty = await bountyEscrow.bounties(1);
+            expect(bounty.status).to.equal(BigInt(BountyStatus.Cancelled));
+            expect(bounty.remainingBalance).to.equal(0n);
+
+            // Verify ExpiredBountyRefunded event emitted
+            const event = findParsedEvent(receipt, bountyEscrow, "ExpiredBountyRefunded");
+            expect(event).to.not.be.null;
+            expect(event?.args[0]).to.equal(1n);
+            expect(event?.args[1]).to.equal(client.address);
+            expect(event?.args[2]).to.equal(bountyAmount);
+        });
+
+        it("should reject claimExpiredRefund if deadline has not passed yet", async function () {
+            const { ethers, bountyEscrow, freelancer } = await deployFixture();
+            const bountyAmount = ethers.parseEther("2");
+
+            await (await bountyEscrow.createBounty({ value: bountyAmount })).wait();
+            await (await bountyEscrow.assignFreelancer(1, freelancer.address)).wait();
+
+            const block = await ethers.provider.getBlock("latest");
+            const deadline = BigInt(block!.timestamp + 5000);
+            await (await bountyEscrow.setDeadline(1, deadline)).wait();
+
+            try {
+                await bountyEscrow.claimExpiredRefund(1);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Bounty deadline has not expired");
+            }
+        });
+
+        it("should reject claimExpiredRefund if deadline was never set", async function () {
+            const { ethers, bountyEscrow, freelancer } = await deployFixture();
+            const bountyAmount = ethers.parseEther("2");
+
+            await (await bountyEscrow.createBounty({ value: bountyAmount })).wait();
+            await (await bountyEscrow.assignFreelancer(1, freelancer.address)).wait();
+
+            try {
+                await bountyEscrow.claimExpiredRefund(1);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Bounty deadline has not expired");
+            }
+        });
+
+        it("should reject claimExpiredRefund if freelancer has already submitted work", async function () {
+            const { ethers, bountyEscrow, freelancer } = await deployFixture();
+            const bountyAmount = ethers.parseEther("2");
+
+            await (await bountyEscrow.createBounty({ value: bountyAmount })).wait();
+            await (await bountyEscrow.assignFreelancer(1, freelancer.address)).wait();
+
+            const block = await ethers.provider.getBlock("latest");
+            const deadline = BigInt(block!.timestamp + 1000);
+            await (await bountyEscrow.setDeadline(1, deadline)).wait();
+
+            // Freelancer submits work before deadline
+            await (
+                await (bountyEscrow.connect(freelancer) as typeof bountyEscrow).submitWork(
+                    1,
+                    "ipfs://bafybeidocuments"
+                )
+            ).wait();
+
+            // Advance time past deadline
+            await ethers.provider.send("evm_increaseTime", [1500]);
+            await ethers.provider.send("evm_mine", []);
+
+            try {
+                await bountyEscrow.claimExpiredRefund(1);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include(
+                    "Cannot claim expired refund after work is submitted; raise a dispute instead"
+                );
+            }
+        });
+
+        it("should reject claimExpiredRefund if caller is not client", async function () {
+            const { ethers, bountyEscrow, freelancer, attacker } = await deployFixture();
+            const bountyAmount = ethers.parseEther("2");
+
+            await (await bountyEscrow.createBounty({ value: bountyAmount })).wait();
+            await (await bountyEscrow.assignFreelancer(1, freelancer.address)).wait();
+
+            const block = await ethers.provider.getBlock("latest");
+            const deadline = BigInt(block!.timestamp + 1000);
+            await (await bountyEscrow.setDeadline(1, deadline)).wait();
+
+            await ethers.provider.send("evm_increaseTime", [1001]);
+            await ethers.provider.send("evm_mine", []);
+
+            try {
+                await (bountyEscrow.connect(attacker) as typeof bountyEscrow).claimExpiredRefund(1);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Only client can claim expired refund");
+            }
+        });
+
+        it("should reject claimExpiredRefund if bounty is not assigned (e.g. Open)", async function () {
+            const { ethers, bountyEscrow } = await deployFixture();
+            const bountyAmount = ethers.parseEther("2");
+
+            await (await bountyEscrow.createBounty({ value: bountyAmount })).wait();
+
+            const block = await ethers.provider.getBlock("latest");
+            const deadline = BigInt(block!.timestamp + 1000);
+            await (await bountyEscrow.setDeadline(1, deadline)).wait();
+
+            await ethers.provider.send("evm_increaseTime", [1001]);
+            await ethers.provider.send("evm_mine", []);
+
+            try {
+                await bountyEscrow.claimExpiredRefund(1);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Bounty is not assigned");
+            }
+        });
+
+        it("should reject claimExpiredRefund with invalid bounty ID", async function () {
+            const { bountyEscrow } = await deployFixture();
+
+            try {
+                await bountyEscrow.claimExpiredRefund(999);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Invalid bounty ID");
+            }
+        });
+    });
 });
