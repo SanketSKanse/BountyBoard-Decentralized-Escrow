@@ -12,12 +12,12 @@ enum BountyStatus {
 describe("BountyEscrow", function () {
     async function deployFixture() {
         const { ethers } = await hre.network.connect();
-        const [client, freelancer, arbiter, attacker, other] =
+        const [client, freelancer, arbiter, attacker, other, treasury] =
             await ethers.getSigners();
         const BountyEscrow = await ethers.getContractFactory("BountyEscrow");
-        const bountyEscrow = await BountyEscrow.deploy(arbiter.address);
+        const bountyEscrow = await BountyEscrow.deploy(arbiter.address, treasury.address);
         await bountyEscrow.waitForDeployment();
-        return { ethers, bountyEscrow, client, freelancer, arbiter, attacker, other };
+        return { ethers, bountyEscrow, client, freelancer, arbiter, attacker, other, treasury };
     }
 
     function findParsedEvent(receipt: any, bountyEscrow: any, eventName: string) {
@@ -35,19 +35,33 @@ describe("BountyEscrow", function () {
     }
 
     describe("Deployment & Constructor", function () {
-        it("should deploy with the specified arbiter", async function () {
-            const { bountyEscrow, arbiter } = await deployFixture();
+        it("should deploy with the specified arbiter and treasury", async function () {
+            const { bountyEscrow, arbiter, treasury } = await deployFixture();
             expect(await bountyEscrow.arbiter()).to.equal(arbiter.address);
+            expect(await bountyEscrow.treasury()).to.equal(treasury.address);
+            expect(await bountyEscrow.PROTOCOL_FEE_BPS()).to.equal(100n);
+            expect(await bountyEscrow.BPS_DENOMINATOR()).to.equal(10000n);
         });
 
         it("should reject deployment with zero address arbiter", async function () {
-            const { ethers } = await deployFixture();
+            const { ethers, treasury } = await deployFixture();
             const BountyEscrow = await ethers.getContractFactory("BountyEscrow");
             try {
-                await BountyEscrow.deploy(ethers.ZeroAddress);
+                await BountyEscrow.deploy(ethers.ZeroAddress, treasury.address);
                 expect.fail("Deployment should have reverted");
             } catch (error: any) {
                 expect(error.message).to.include("Invalid arbiter address");
+            }
+        });
+
+        it("should reject deployment with zero address treasury", async function () {
+            const { ethers, arbiter } = await deployFixture();
+            const BountyEscrow = await ethers.getContractFactory("BountyEscrow");
+            try {
+                await BountyEscrow.deploy(arbiter.address, ethers.ZeroAddress);
+                expect.fail("Deployment should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Invalid treasury address");
             }
         });
     });
@@ -180,18 +194,23 @@ describe("BountyEscrow", function () {
 
     describe("Payment Release (Non-Milestone)", function () {
         it("should release the bounty payment to the freelancer", async function () {
-            const { ethers, bountyEscrow, freelancer } = await deployFixture();
+            const { ethers, bountyEscrow, freelancer, treasury } = await deployFixture();
             const bountyAmount = ethers.parseEther("1");
 
             await (await bountyEscrow.createBounty({ value: bountyAmount })).wait();
             await (await bountyEscrow.assignFreelancer(1, freelancer.address)).wait();
 
+            const treasuryBalanceBefore = await ethers.provider.getBalance(treasury.address);
             const balanceBefore = await ethers.provider.getBalance(freelancer.address);
             const tx = await bountyEscrow.releasePayment(1);
             const receipt = await tx.wait();
             const balanceAfter = await ethers.provider.getBalance(freelancer.address);
+            const treasuryBalanceAfter = await ethers.provider.getBalance(treasury.address);
 
-            expect(balanceAfter - balanceBefore).to.equal(bountyAmount);
+            const expectedFee = (bountyAmount * 100n) / 10000n;
+            const expectedFreelancerPayout = bountyAmount - expectedFee;
+            expect(balanceAfter - balanceBefore).to.equal(expectedFreelancerPayout);
+            expect(treasuryBalanceAfter - treasuryBalanceBefore).to.equal(expectedFee);
 
             const bounty = await bountyEscrow.bounties(1);
             expect(bounty.status).to.equal(BigInt(BountyStatus.Completed));
@@ -299,7 +318,7 @@ describe("BountyEscrow", function () {
         });
 
         it("should release milestone payment when the client approves it", async function () {
-            const { ethers, bountyEscrow, freelancer } = await deployFixture();
+            const { ethers, bountyEscrow, freelancer, treasury } = await deployFixture();
             const bountyAmount = ethers.parseEther("5");
             const milestoneAmount = ethers.parseEther("2");
 
@@ -307,11 +326,16 @@ describe("BountyEscrow", function () {
             await (await bountyEscrow.assignFreelancer(1, freelancer.address)).wait();
             await (await bountyEscrow.createMilestone(1, "Milestone 1", milestoneAmount)).wait();
 
+            const treasuryBalanceBefore = await ethers.provider.getBalance(treasury.address);
             const balanceBefore = await ethers.provider.getBalance(freelancer.address);
             await (await bountyEscrow.approveMilestone(1, 0)).wait();
             const balanceAfter = await ethers.provider.getBalance(freelancer.address);
+            const treasuryBalanceAfter = await ethers.provider.getBalance(treasury.address);
 
-            expect(balanceAfter - balanceBefore).to.equal(milestoneAmount);
+            const expectedMilestoneFee = (milestoneAmount * 100n) / 10000n;
+            const expectedFreelancerPayout = milestoneAmount - expectedMilestoneFee;
+            expect(balanceAfter - balanceBefore).to.equal(expectedFreelancerPayout);
+            expect(treasuryBalanceAfter - treasuryBalanceBefore).to.equal(expectedMilestoneFee);
 
             const milestone = await bountyEscrow.milestones(1, 0);
             expect(milestone.completed).to.equal(true);
@@ -582,7 +606,7 @@ describe("BountyEscrow", function () {
 
     describe("Dispute Resolution (resolveDispute)", function () {
         it("should allow arbiter to resolve dispute and distribute split correctly", async function () {
-            const { ethers, bountyEscrow, client, freelancer, arbiter } = await deployFixture();
+            const { ethers, bountyEscrow, client, freelancer, arbiter, treasury } = await deployFixture();
             const bountyAmount = ethers.parseEther("10");
 
             await (await bountyEscrow.createBounty({ value: bountyAmount })).wait();
@@ -594,6 +618,7 @@ describe("BountyEscrow", function () {
 
             const clientBalanceBefore = await ethers.provider.getBalance(client.address);
             const freelancerBalanceBefore = await ethers.provider.getBalance(freelancer.address);
+            const treasuryBalanceBefore = await ethers.provider.getBalance(treasury.address);
 
             const tx = await (bountyEscrow.connect(arbiter) as typeof bountyEscrow)
                 .resolveDispute(1, clientRefund, freelancerPayout);
@@ -601,9 +626,14 @@ describe("BountyEscrow", function () {
 
             const clientBalanceAfter = await ethers.provider.getBalance(client.address);
             const freelancerBalanceAfter = await ethers.provider.getBalance(freelancer.address);
+            const treasuryBalanceAfter = await ethers.provider.getBalance(treasury.address);
+
+            const expectedFreelancerFee = (freelancerPayout * 100n) / 10000n;
+            const expectedFreelancerNet = freelancerPayout - expectedFreelancerFee;
 
             expect(clientBalanceAfter - clientBalanceBefore).to.equal(clientRefund);
-            expect(freelancerBalanceAfter - freelancerBalanceBefore).to.equal(freelancerPayout);
+            expect(freelancerBalanceAfter - freelancerBalanceBefore).to.equal(expectedFreelancerNet);
+            expect(treasuryBalanceAfter - treasuryBalanceBefore).to.equal(expectedFreelancerFee);
 
             const bounty = await bountyEscrow.bounties(1);
             expect(bounty.status).to.equal(BigInt(BountyStatus.Completed));
@@ -1134,6 +1164,330 @@ describe("BountyEscrow", function () {
                 expect.fail("Transaction should have reverted");
             } catch (error: any) {
                 expect(error.message).to.include("Invalid bounty ID");
+            }
+        });
+    });
+
+    describe("ERC-20 Token Escrow & Protocol Fee", function () {
+        async function deployTokenFixture() {
+            const fixture = await deployFixture();
+            const MockERC20 = await fixture.ethers.getContractFactory("MockERC20");
+            const mockToken = await MockERC20.deploy("USD Coin", "USDC", 6);
+            await mockToken.waitForDeployment();
+            return { ...fixture, mockToken };
+        }
+
+        it("should create a token bounty using MockERC20 after approval", async function () {
+            const { ethers, bountyEscrow, client, mockToken } = await deployTokenFixture();
+            const bountyAmount = ethers.parseUnits("1000", 6);
+
+            await (await mockToken.mint(client.address, bountyAmount)).wait();
+            await (await (mockToken.connect(client) as typeof mockToken).approve(
+                await bountyEscrow.getAddress(),
+                bountyAmount
+            )).wait();
+
+            const tx = await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .createTokenBounty(await mockToken.getAddress(), bountyAmount);
+            const receipt = await tx.wait();
+
+            expect(await bountyEscrow.bountyCount()).to.equal(1n);
+            expect(await bountyEscrow.bountyTokens(1)).to.equal(await mockToken.getAddress());
+
+            const bounty = await bountyEscrow.bounties(1);
+            expect(bounty.client).to.equal(client.address);
+            expect(bounty.freelancer).to.equal(ethers.ZeroAddress);
+            expect(bounty.amount).to.equal(bountyAmount);
+            expect(bounty.remainingBalance).to.equal(bountyAmount);
+            expect(bounty.status).to.equal(BigInt(BountyStatus.Open));
+
+            expect(await mockToken.balanceOf(await bountyEscrow.getAddress())).to.equal(bountyAmount);
+            expect(await mockToken.balanceOf(client.address)).to.equal(0n);
+
+            const event = findParsedEvent(receipt, bountyEscrow, "BountyCreated");
+            expect(event).to.not.be.null;
+            expect(event?.args[0]).to.equal(1n);
+            expect(event?.args[1]).to.equal(client.address);
+            expect(event?.args[2]).to.equal(bountyAmount);
+        });
+
+        it("should reject creating token bounty if user has insufficient allowance or balance", async function () {
+            const { ethers, bountyEscrow, client, mockToken } = await deployTokenFixture();
+            const bountyAmount = ethers.parseUnits("1000", 6);
+
+            // 1. Without approval
+            await (await mockToken.mint(client.address, bountyAmount)).wait();
+            try {
+                await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                    .createTokenBounty(await mockToken.getAddress(), bountyAmount);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("insufficient allowance");
+            }
+
+            // 2. Insufficient balance even with approval
+            const spender = await bountyEscrow.getAddress();
+            await (await (mockToken.connect(client) as typeof mockToken).approve(spender, bountyAmount * 2n)).wait();
+            try {
+                await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                    .createTokenBounty(await mockToken.getAddress(), bountyAmount * 2n);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("transfer amount exceeds balance");
+            }
+        });
+
+        it("should reject creating token bounty with zero address token or zero amount", async function () {
+            const { ethers, bountyEscrow, client, mockToken } = await deployTokenFixture();
+            const bountyAmount = ethers.parseUnits("500", 6);
+
+            try {
+                await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                    .createTokenBounty(ethers.ZeroAddress, bountyAmount);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Invalid token address");
+            }
+
+            try {
+                await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                    .createTokenBounty(await mockToken.getAddress(), 0n);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Bounty amount must be greater than 0");
+            }
+        });
+
+        it("should release payment in tokens, deducting 1% protocol fee to treasury and 99% to freelancer", async function () {
+            const { ethers, bountyEscrow, client, freelancer, treasury, mockToken } = await deployTokenFixture();
+            const bountyAmount = ethers.parseUnits("1000", 6);
+
+            await (await mockToken.mint(client.address, bountyAmount)).wait();
+            await (await (mockToken.connect(client) as typeof mockToken).approve(
+                await bountyEscrow.getAddress(),
+                bountyAmount
+            )).wait();
+
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .createTokenBounty(await mockToken.getAddress(), bountyAmount)).wait();
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .assignFreelancer(1, freelancer.address)).wait();
+
+            const tx = await (bountyEscrow.connect(client) as typeof bountyEscrow).releasePayment(1);
+            const receipt = await tx.wait();
+
+            const expectedFee = ethers.parseUnits("10", 6); // 1% of 1000 = 10
+            const expectedPayout = ethers.parseUnits("990", 6); // 99% of 1000 = 990
+
+            expect(await mockToken.balanceOf(treasury.address)).to.equal(expectedFee);
+            expect(await mockToken.balanceOf(freelancer.address)).to.equal(expectedPayout);
+            expect(await mockToken.balanceOf(await bountyEscrow.getAddress())).to.equal(0n);
+
+            const bounty = await bountyEscrow.bounties(1);
+            expect(bounty.status).to.equal(BigInt(BountyStatus.Completed));
+            expect(bounty.remainingBalance).to.equal(0n);
+
+            const paymentEvent = findParsedEvent(receipt, bountyEscrow, "PaymentReleased");
+            expect(paymentEvent).to.not.be.null;
+            expect(paymentEvent?.args[2]).to.equal(bountyAmount);
+
+            const feeEvent = findParsedEvent(receipt, bountyEscrow, "FeeCollected");
+            expect(feeEvent).to.not.be.null;
+            expect(feeEvent?.args[0]).to.equal(1n);
+            expect(feeEvent?.args[1]).to.equal(await mockToken.getAddress());
+            expect(feeEvent?.args[2]).to.equal(expectedFee);
+        });
+
+        it("should refund 100% tokens to client on cancellation without taking fees", async function () {
+            const { ethers, bountyEscrow, client, treasury, mockToken } = await deployTokenFixture();
+            const bountyAmount = ethers.parseUnits("500", 6);
+
+            await (await mockToken.mint(client.address, bountyAmount)).wait();
+            await (await (mockToken.connect(client) as typeof mockToken).approve(
+                await bountyEscrow.getAddress(),
+                bountyAmount
+            )).wait();
+
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .createTokenBounty(await mockToken.getAddress(), bountyAmount)).wait();
+
+            const tx = await (bountyEscrow.connect(client) as typeof bountyEscrow).cancelBounty(1);
+            const receipt = await tx.wait();
+
+            expect(await mockToken.balanceOf(client.address)).to.equal(bountyAmount);
+            expect(await mockToken.balanceOf(treasury.address)).to.equal(0n);
+            expect(await mockToken.balanceOf(await bountyEscrow.getAddress())).to.equal(0n);
+
+            const bounty = await bountyEscrow.bounties(1);
+            expect(bounty.status).to.equal(BigInt(BountyStatus.Cancelled));
+            expect(bounty.remainingBalance).to.equal(0n);
+
+            const cancelEvent = findParsedEvent(receipt, bountyEscrow, "BountyCancelled");
+            expect(cancelEvent).to.not.be.null;
+            expect(cancelEvent?.args[2]).to.equal(bountyAmount);
+        });
+
+        it("should handle milestone token payouts and protocol fees correctly", async function () {
+            const { ethers, bountyEscrow, client, freelancer, treasury, mockToken } = await deployTokenFixture();
+            const bountyAmount = ethers.parseUnits("1000", 6);
+            const m1Amount = ethers.parseUnits("400", 6);
+            const m2Amount = ethers.parseUnits("600", 6);
+
+            await (await mockToken.mint(client.address, bountyAmount)).wait();
+            await (await (mockToken.connect(client) as typeof mockToken).approve(
+                await bountyEscrow.getAddress(),
+                bountyAmount
+            )).wait();
+
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .createTokenBounty(await mockToken.getAddress(), bountyAmount)).wait();
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .assignFreelancer(1, freelancer.address)).wait();
+
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .createMilestone(1, "Milestone 1", m1Amount)).wait();
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .createMilestone(1, "Milestone 2", m2Amount)).wait();
+
+            // Approve M1
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow).approveMilestone(1, 0)).wait();
+            const expectedFee1 = ethers.parseUnits("4", 6); // 1% of 400 = 4
+            const expectedPayout1 = ethers.parseUnits("396", 6); // 99% of 400 = 396
+            expect(await mockToken.balanceOf(treasury.address)).to.equal(expectedFee1);
+            expect(await mockToken.balanceOf(freelancer.address)).to.equal(expectedPayout1);
+            expect(await mockToken.balanceOf(await bountyEscrow.getAddress())).to.equal(m2Amount);
+
+            // Approve M2
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow).approveMilestone(1, 1)).wait();
+            const totalFee = ethers.parseUnits("10", 6); // 4 + 6 = 10
+            const totalPayout = ethers.parseUnits("990", 6); // 396 + 594 = 990
+            expect(await mockToken.balanceOf(treasury.address)).to.equal(totalFee);
+            expect(await mockToken.balanceOf(freelancer.address)).to.equal(totalPayout);
+            expect(await mockToken.balanceOf(await bountyEscrow.getAddress())).to.equal(0n);
+
+            const bounty = await bountyEscrow.bounties(1);
+            expect(bounty.status).to.equal(BigInt(BountyStatus.Completed));
+            expect(bounty.remainingBalance).to.equal(0n);
+        });
+
+        it("should resolve disputes with token split between client and freelancer", async function () {
+            const { ethers, bountyEscrow, client, freelancer, arbiter, treasury, mockToken } = await deployTokenFixture();
+            const bountyAmount = ethers.parseUnits("1000", 6);
+            const clientRefund = ethers.parseUnits("400", 6);
+            const freelancerPayout = ethers.parseUnits("600", 6);
+
+            await (await mockToken.mint(client.address, bountyAmount)).wait();
+            await (await (mockToken.connect(client) as typeof mockToken).approve(
+                await bountyEscrow.getAddress(),
+                bountyAmount
+            )).wait();
+
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .createTokenBounty(await mockToken.getAddress(), bountyAmount)).wait();
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .assignFreelancer(1, freelancer.address)).wait();
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow).raiseDispute(1)).wait();
+
+            await (await (bountyEscrow.connect(arbiter) as typeof bountyEscrow)
+                .resolveDispute(1, clientRefund, freelancerPayout)).wait();
+
+            const expectedFreelancerFee = ethers.parseUnits("6", 6); // 1% of 600 = 6
+            const expectedFreelancerNet = ethers.parseUnits("594", 6); // 99% of 600 = 594
+
+            expect(await mockToken.balanceOf(client.address)).to.equal(clientRefund);
+            expect(await mockToken.balanceOf(freelancer.address)).to.equal(expectedFreelancerNet);
+            expect(await mockToken.balanceOf(treasury.address)).to.equal(expectedFreelancerFee);
+            expect(await mockToken.balanceOf(await bountyEscrow.getAddress())).to.equal(0n);
+
+            const bounty = await bountyEscrow.bounties(1);
+            expect(bounty.status).to.equal(BigInt(BountyStatus.Completed));
+            expect(bounty.remainingBalance).to.equal(0n);
+        });
+
+        it("should support createTokenBountyWithDeadline and claimExpiredRefund if missed", async function () {
+            const { ethers, bountyEscrow, client, freelancer, mockToken } = await deployTokenFixture();
+            const bountyAmount = ethers.parseUnits("1000", 6);
+
+            await (await mockToken.mint(client.address, bountyAmount)).wait();
+            await (await (mockToken.connect(client) as typeof mockToken).approve(
+                await bountyEscrow.getAddress(),
+                bountyAmount
+            )).wait();
+
+            const block = await ethers.provider.getBlock("latest");
+            const deadline = BigInt(block!.timestamp + 1000);
+
+            const tx = await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .createTokenBountyWithDeadline(await mockToken.getAddress(), bountyAmount, deadline);
+            const receipt = await tx.wait();
+
+            expect(await bountyEscrow.bountyDeadlines(1)).to.equal(deadline);
+            expect(await bountyEscrow.bountyTokens(1)).to.equal(await mockToken.getAddress());
+
+            const deadlineEvent = findParsedEvent(receipt, bountyEscrow, "DeadlineUpdated");
+            expect(deadlineEvent).to.not.be.null;
+            expect(deadlineEvent?.args[1]).to.equal(deadline);
+
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .assignFreelancer(1, freelancer.address)).wait();
+
+            // Advance time past deadline
+            await ethers.provider.send("evm_increaseTime", [1500]);
+            await ethers.provider.send("evm_mine", []);
+
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow).claimExpiredRefund(1)).wait();
+
+            expect(await mockToken.balanceOf(client.address)).to.equal(bountyAmount);
+            expect(await mockToken.balanceOf(await bountyEscrow.getAddress())).to.equal(0n);
+
+            const bounty = await bountyEscrow.bounties(1);
+            expect(bounty.status).to.equal(BigInt(BountyStatus.Cancelled));
+            expect(bounty.remainingBalance).to.equal(0n);
+        });
+
+        it("should refund remainder in tokens after milestones completed", async function () {
+            const { ethers, bountyEscrow, client, freelancer, mockToken } = await deployTokenFixture();
+            const bountyAmount = ethers.parseUnits("1000", 6);
+            const milestoneAmount = ethers.parseUnits("700", 6);
+            const remainder = ethers.parseUnits("300", 6);
+
+            await (await mockToken.mint(client.address, bountyAmount)).wait();
+            await (await (mockToken.connect(client) as typeof mockToken).approve(
+                await bountyEscrow.getAddress(),
+                bountyAmount
+            )).wait();
+
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .createTokenBounty(await mockToken.getAddress(), bountyAmount)).wait();
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .assignFreelancer(1, freelancer.address)).wait();
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .createMilestone(1, "Milestone 1", milestoneAmount)).wait();
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                .approveMilestone(1, 0)).wait();
+
+            await (await (bountyEscrow.connect(client) as typeof bountyEscrow).refundRemainder(1)).wait();
+
+            expect(await mockToken.balanceOf(client.address)).to.equal(remainder);
+            expect(await mockToken.balanceOf(await bountyEscrow.getAddress())).to.equal(0n);
+
+            const bounty = await bountyEscrow.bounties(1);
+            expect(bounty.status).to.equal(BigInt(BountyStatus.Completed));
+            expect(bounty.remainingBalance).to.equal(0n);
+        });
+
+        it("should reject creating token bounty with deadline in the past", async function () {
+            const { ethers, bountyEscrow, client, mockToken } = await deployTokenFixture();
+            const bountyAmount = ethers.parseUnits("1000", 6);
+            const block = await ethers.provider.getBlock("latest");
+            const pastDeadline = BigInt(block!.timestamp - 100);
+
+            try {
+                await (bountyEscrow.connect(client) as typeof bountyEscrow)
+                    .createTokenBountyWithDeadline(await mockToken.getAddress(), bountyAmount, pastDeadline);
+                expect.fail("Transaction should have reverted");
+            } catch (error: any) {
+                expect(error.message).to.include("Deadline must be in the future");
             }
         });
     });
