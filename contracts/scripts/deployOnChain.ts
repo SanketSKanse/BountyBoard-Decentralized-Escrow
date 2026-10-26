@@ -36,11 +36,13 @@ async function main() {
     }
 
     const arbiterAddress = process.env.ARBITER_ADDRESS?.trim() || deployer.address;
+    const treasuryAddress = process.env.TREASURY_ADDRESS?.trim() || deployer.address;
     console.log("Arbiter Address:", arbiterAddress);
+    console.log("Treasury Address:", treasuryAddress);
 
     console.log("Deploying BountyEscrow contract...");
     const BountyEscrow = await ethers.getContractFactory("BountyEscrow");
-    const bountyEscrow = await BountyEscrow.deploy(arbiterAddress);
+    const bountyEscrow = await BountyEscrow.deploy(arbiterAddress, treasuryAddress);
 
     console.log("Waiting for deployment transaction to be confirmed on-chain...");
     await bountyEscrow.waitForDeployment();
@@ -185,9 +187,15 @@ export function getExplorerTxUrl(txHash: string, chainId?: bigint | number | str
 export const BOUNTY_ESCROW_ABI = [
     "function createBounty() payable",
     "function createBountyWithDeadline(uint256 deadline) payable",
+    "function createTokenBounty(address token, uint256 amount) returns (uint256)",
+    "function createTokenBountyWithDeadline(address token, uint256 amount, uint256 deadline) returns (uint256)",
     "function assignFreelancer(uint256 bountyId, address freelancer)",
     "function bountyCount() view returns (uint256)",
     "function arbiter() view returns (address)",
+    "function treasury() view returns (address)",
+    "function PROTOCOL_FEE_BPS() view returns (uint256)",
+    "function BPS_DENOMINATOR() view returns (uint256)",
+    "function bountyTokens(uint256) view returns (address)",
     "function bounties(uint256) view returns (address client, address freelancer, uint256 amount, uint256 remainingBalance, uint8 status)",
     "function bountyDeliverables(uint256) view returns (string)",
     "function bountySubmittedAt(uint256) view returns (uint256)",
