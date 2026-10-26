@@ -1,11 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Contract, isAddress, parseEther, type JsonRpcSigner } from 'ethers';
 import BountyEscrowArtifact from '../contracts/BountyEscrow.json';
 import { BOUNTY_ESCROW_ADDRESS, getExplorerAddressUrl, getExplorerTxUrl } from '../contracts/config';
 import { useMilestones } from '../hooks/useMilestones';
 import type { Bounty } from '../hooks/useBounties';
+import { API_BASE_URL } from '../config';
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+export type Proposal = {
+    id: string;
+    bountyId: number;
+    freelancerAddress: string;
+    coverLetter: string;
+    timelineDays: number;
+    portfolioUrl?: string | null;
+    status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+    createdAt: string;
+};
 
 type Props = {
     bounty: Bounty;
@@ -16,14 +28,27 @@ type Props = {
 };
 
 export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdated }: Props) {
+    // Form & action states
     const [freelancerInput, setFreelancerInput] = useState('');
+    const [showManualAssign, setShowManualAssign] = useState(false);
     const [milestoneDescription, setMilestoneDescription] = useState('');
     const [milestoneAmount, setMilestoneAmount] = useState('');
     const [clientRefundInput, setClientRefundInput] = useState('');
     const [freelancerPayoutInput, setFreelancerPayoutInput] = useState('');
+    const [deliverableInput, setDeliverableInput] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [statusMessage, setStatusMessage] = useState<React.ReactNode | null>(null);
     const [milestoneRefreshKey, setMilestoneRefreshKey] = useState(0);
+
+    // Proposal states
+    const [proposals, setProposals] = useState<Proposal[]>([]);
+    const [proposalsLoading, setProposalsLoading] = useState(false);
+    const [proposalRefreshKey, setProposalRefreshKey] = useState(0);
+    const [showProposalForm, setShowProposalForm] = useState(false);
+    const [showProposalsList, setShowProposalsList] = useState(false);
+    const [coverLetter, setCoverLetter] = useState('');
+    const [timelineDays, setTimelineDays] = useState('7');
+    const [portfolioUrl, setPortfolioUrl] = useState('');
 
     const { milestones, isLoading: milestonesLoading } = useMilestones(bounty.id, milestoneRefreshKey);
 
@@ -54,6 +79,12 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
     const isCompleted = bounty.status === 3;
     const isCancelled = bounty.status === 4;
 
+    // Deadline calculations
+    const nowSec = Math.floor(Date.now() / 1000);
+    const hasDeadline = bounty.deadline > 0;
+    const isExpired = hasDeadline && nowSec > bounty.deadline;
+    const hasDeliverable = Boolean(bounty.deliverableUri && bounty.deliverableUri.trim().length > 0);
+
     const statusBorderColor = isOpen
         ? 'border-l-blue-500'
         : isAssigned
@@ -64,6 +95,31 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
         ? 'border-l-green-500'
         : 'border-l-gray-500';
 
+    // Fetch proposals for this bounty
+    useEffect(() => {
+        let isMounted = true;
+        async function fetchProposals() {
+            setProposalsLoading(true);
+            try {
+                const res = await fetch(`${API_BASE_URL}/bounties/${bounty.id}/proposals`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isMounted) setProposals(data);
+                }
+            } catch (err) {
+                console.error(`Failed to fetch proposals for bounty ${bounty.id}`, err);
+            } finally {
+                if (isMounted) setProposalsLoading(false);
+            }
+        }
+
+        fetchProposals();
+        return () => {
+            isMounted = false;
+        };
+    }, [bounty.id, proposalRefreshKey]);
+
+    // Handle Manual Assign
     async function handleAssign() {
         if (!signer) return;
         setStatusMessage(null);
@@ -103,6 +159,179 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
         }
     }
 
+    // Handle 1-Click Hire from Proposal
+    async function handleHireProposal(proposal: Proposal) {
+        if (!signer) return;
+        setStatusMessage(null);
+
+        try {
+            setIsSubmitting(true);
+            setStatusMessage(`Hiring ${proposal.freelancerAddress.slice(0, 6)}... Confirm in MetaMask`);
+
+            // 1. Assign on-chain
+            const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, signer);
+            const tx = await contract.assignFreelancer(bounty.id, proposal.freelancerAddress);
+            setStatusMessage('Transaction sent, confirming on blockchain...');
+            await tx.wait();
+
+            // 2. Mark proposal as accepted on backend
+            try {
+                await fetch(`${API_BASE_URL}/bounties/${bounty.id}/proposals/${proposal.id}/accept`, {
+                    method: 'PATCH',
+                });
+            } catch (err) {
+                console.warn('Backend proposal status update warning:', err);
+            }
+
+            setStatusMessage(
+                <span>
+                    🎉 Freelancer hired and assigned on-chain!{' '}
+                    <a
+                        href={getExplorerTxUrl(tx.hash, chainId)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline text-mint hover:text-white"
+                    >
+                        View Tx
+                    </a>
+                </span>
+            );
+            setProposalRefreshKey((k) => k + 1);
+            onUpdated();
+        } catch (err) {
+            console.error('Hire proposal error:', err);
+            setStatusMessage(extractRevertReason(err));
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
+    // Handle Freelancer Submitting Proposal
+    async function handleProposalSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        if (!connectedAddress) {
+            setStatusMessage('Connect your wallet to submit a proposal.');
+            return;
+        }
+
+        if (!coverLetter.trim()) {
+            setStatusMessage('Please include a cover letter explaining your approach.');
+            return;
+        }
+
+        const days = Number(timelineDays) || 7;
+
+        try {
+            setIsSubmitting(true);
+            setStatusMessage('Submitting proposal to marketplace...');
+
+            const res = await fetch(`${API_BASE_URL}/bounties/${bounty.id}/proposals`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    freelancerAddress: connectedAddress,
+                    coverLetter: coverLetter.trim(),
+                    timelineDays: days,
+                    portfolioUrl: portfolioUrl.trim() || undefined,
+                }),
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `HTTP ${res.status}`);
+            }
+
+            setStatusMessage('✅ Proposal submitted successfully! The client can now review your bid.');
+            setCoverLetter('');
+            setPortfolioUrl('');
+            setShowProposalForm(false);
+            setProposalRefreshKey((k) => k + 1);
+            onUpdated();
+        } catch (err: any) {
+            console.error('Submit proposal error:', err);
+            setStatusMessage(`Failed to submit proposal: ${err.message}`);
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
+    // Handle Freelancer Submitting Work Proof On-Chain
+    async function handleSubmitWork() {
+        if (!signer) return;
+        setStatusMessage(null);
+
+        if (!deliverableInput.trim()) {
+            setStatusMessage('Please enter a deliverable proof URI (e.g. GitHub PR, IPFS link, or demo URL).');
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            setStatusMessage('Waiting for confirmation in MetaMask...');
+            const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, signer);
+            const tx = await contract.submitWork(bounty.id, deliverableInput.trim());
+            setStatusMessage('Transaction sent, recording deliverable on blockchain...');
+            await tx.wait();
+
+            setStatusMessage(
+                <span>
+                    📦 Work deliverable proof recorded on-chain!{' '}
+                    <a
+                        href={getExplorerTxUrl(tx.hash, chainId)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline text-mint hover:text-white"
+                    >
+                        View Tx
+                    </a>
+                </span>
+            );
+            setDeliverableInput('');
+            onUpdated();
+        } catch (err) {
+            console.error(err);
+            setStatusMessage(extractRevertReason(err));
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
+    // Handle Client Claiming Expired Deadline Refund
+    async function handleClaimExpiredRefund() {
+        if (!signer) return;
+        setStatusMessage(null);
+
+        try {
+            setIsSubmitting(true);
+            setStatusMessage('Waiting for confirmation in MetaMask...');
+            const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, signer);
+            const tx = await contract.claimExpiredRefund(bounty.id);
+            setStatusMessage('Transaction sent, claiming 100% expired refund...');
+            await tx.wait();
+
+            setStatusMessage(
+                <span>
+                    ⌛ Deadline expired with no work submitted. 100% escrow balance refunded to client.{' '}
+                    <a
+                        href={getExplorerTxUrl(tx.hash, chainId)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline text-gold hover:text-white"
+                    >
+                        View Tx
+                    </a>
+                </span>
+            );
+            onUpdated();
+        } catch (err) {
+            console.error(err);
+            setStatusMessage(extractRevertReason(err));
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
+    // Handle Cancel & Refund when Open
     async function handleCancelAndRefund() {
         if (!signer) return;
         setStatusMessage(null);
@@ -136,6 +365,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
         }
     }
 
+    // Handle Raise Dispute
     async function handleRaiseDispute() {
         if (!signer) return;
         setStatusMessage(null);
@@ -169,6 +399,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
         }
     }
 
+    // Handle Arbiter Dispute Resolution
     async function handleExecuteSettlement() {
         if (!signer) return;
         setStatusMessage(null);
@@ -230,6 +461,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
         }
     }
 
+    // Handle Full Payment Release
     async function handleRelease() {
         if (!signer) return;
         setStatusMessage(null);
@@ -263,6 +495,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
         }
     }
 
+    // Handle Refund Remainder
     async function handleRefundRemainder() {
         if (!signer) return;
         setStatusMessage(null);
@@ -296,6 +529,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
         }
     }
 
+    // Handle Milestone creation
     async function handleAddMilestone() {
         if (!signer) return;
         setStatusMessage(null);
@@ -334,6 +568,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
         }
     }
 
+    // Handle Milestone approval
     async function handleApproveMilestone(index: number) {
         if (!signer) return;
         setStatusMessage(null);
@@ -357,28 +592,72 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
     }
 
     return (
-        <div className={`glass rounded-2xl border-l-4 ${statusBorderColor} p-5`}>
-            {/* Header: Title and Status Badge */}
-            <div className="flex items-start justify-between">
-                <div>
+        <div className={`glass rounded-2xl border-l-4 ${statusBorderColor} p-5 space-y-4`}>
+            {/* Top Bar: Category Pill & Status Badge */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-violet/20 border border-violet/30 px-2.5 py-0.5 text-xs font-medium text-violet-300">
+                        {bounty.category || 'General'}
+                    </span>
                     <span className="font-mono text-xs text-[#9B96AE]">Bounty #{bounty.id}</span>
-                    <h2 className="mt-1 text-lg font-semibold text-[#F1EEE6]">{bounty.title}</h2>
                 </div>
                 <StatusBadge status={bounty.status} />
             </div>
 
-            {/* Reward & Remaining Balance */}
-            <div className="mt-3 flex items-baseline justify-between">
-                <p className="font-display text-2xl text-gold">{bounty.amount} ETH</p>
-                {bounty.remainingBalance && (
-                    <p className="text-xs text-[#9B96AE]">
-                        Remaining Escrow: <span className="font-mono text-[#F1EEE6]">{bounty.remainingBalance} ETH</span>
-                    </p>
-                )}
+            {/* Title & Reward */}
+            <div>
+                <h2 className="text-xl font-semibold text-[#F1EEE6] leading-snug">{bounty.title}</h2>
+                <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="font-display text-2xl text-gold">{bounty.amount} ETH</p>
+                    {bounty.remainingBalance && (
+                        <p className="text-xs text-[#9B96AE]">
+                            Remaining Escrow:{' '}
+                            <span className="font-mono text-[#F1EEE6]">{bounty.remainingBalance} ETH</span>
+                        </p>
+                    )}
+                </div>
             </div>
 
+            {/* Description (if provided) */}
+            {bounty.description && (
+                <p className="text-sm text-[#9B96AE] leading-relaxed whitespace-pre-wrap bg-white/[0.02] p-3 rounded-xl border border-white/5">
+                    {bounty.description}
+                </p>
+            )}
+
+            {/* Skill Tags */}
+            {bounty.skills && bounty.skills.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                    {bounty.skills.map((skill, idx) => (
+                        <span
+                            key={idx}
+                            className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 font-mono text-[11px] text-[#9B96AE]"
+                        >
+                            #{skill}
+                        </span>
+                    ))}
+                </div>
+            )}
+
+            {/* Deadline Indicator */}
+            {hasDeadline && (
+                <div className="flex items-center gap-2 text-xs">
+                    <span className="text-[#9B96AE]">⏰ Deadline:</span>
+                    {isExpired ? (
+                        <span className="font-semibold text-rose-400">
+                            Expired on {new Date(bounty.deadline * 1000).toLocaleDateString()}
+                        </span>
+                    ) : (
+                        <span className="font-medium text-emerald-300">
+                            Due in {Math.max(1, Math.ceil((bounty.deadline - nowSec) / 86400))} days (
+                            {new Date(bounty.deadline * 1000).toLocaleDateString()})
+                        </span>
+                    )}
+                </div>
+            )}
+
             {/* Address Details with Clickable Block Explorer Links */}
-            <div className="mt-3 space-y-1 text-sm text-[#9B96AE]">
+            <div className="space-y-1 text-xs text-[#9B96AE] border-t border-white/10 pt-3">
                 <p>
                     Client:{' '}
                     <a
@@ -402,11 +681,11 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                             {bounty.freelancer}
                         </a>
                     ) : (
-                        <span className="font-mono text-[#9B96AE]">Not assigned</span>
+                        <span className="font-mono text-[#9B96AE]">Not assigned yet</span>
                     )}
                 </p>
                 {bounty.arbiter && (
-                    <p className="text-xs">
+                    <p className="text-[11px]">
                         Arbiter:{' '}
                         <a
                             href={getExplorerAddressUrl(bounty.arbiter, chainId)}
@@ -420,63 +699,340 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                 )}
             </div>
 
+            {/* Assigned Freelancer Pill */}
             {isFreelancer && (
-                <p className="mt-3 inline-block rounded-full bg-violet/10 px-3 py-1 text-xs font-medium text-violet">
-                    You are the assigned freelancer
-                </p>
+                <div className="inline-block rounded-full bg-violet/20 border border-violet/30 px-3 py-1 text-xs font-medium text-violet-300">
+                    ✨ You are the assigned freelancer
+                </div>
+            )}
+
+            {/* VERIFIED ON-CHAIN DELIVERABLE DISPLAY */}
+            {hasDeliverable && (
+                <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className="text-base">📦</span>
+                            <h4 className="text-sm font-semibold text-emerald-300">
+                                Verified On-Chain Deliverable Proof
+                            </h4>
+                        </div>
+                        {bounty.submittedAt > 0 && (
+                            <span className="text-[11px] text-[#9B96AE]">
+                                {new Date(bounty.submittedAt * 1000).toLocaleString()}
+                            </span>
+                        )}
+                    </div>
+                    <p className="mt-1 text-xs text-[#9B96AE]">
+                        The assigned freelancer has recorded their deliverable proof on the blockchain.
+                    </p>
+                    <div className="mt-2.5">
+                        <a
+                            href={
+                                bounty.deliverableUri.startsWith('http') || bounty.deliverableUri.startsWith('ipfs://')
+                                    ? bounty.deliverableUri
+                                    : `https://${bounty.deliverableUri}`
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 font-mono text-xs font-semibold text-emerald-200 hover:bg-emerald-500/30 transition underline"
+                        >
+                            <span>🔗 Inspect Deliverable Work:</span>
+                            <span className="max-w-xs sm:max-w-md truncate">{bounty.deliverableUri}</span>
+                            <span>↗</span>
+                        </a>
+                    </div>
+                </div>
+            )}
+
+            {/* FREELANCER DELIVERABLE SUBMISSION PANEL */}
+            {isFreelancer && isAssigned && !isDisputed && !isCompleted && (
+                <div className="rounded-xl border border-violet/40 bg-violet/10 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-violet-200">
+                            Submit Deliverable Proof (On-Chain)
+                        </h4>
+                        <span className="text-xs text-[#9B96AE]">Permanent Proof</span>
+                    </div>
+                    <p className="text-xs text-[#9B96AE]">
+                        Provide your GitHub Pull Request, IPFS hash, or live project demo URL. This records proof on the escrow contract for the client and arbiter.
+                    </p>
+                    <div className="flex gap-2">
+                        <input
+                            value={deliverableInput}
+                            onChange={(e) => setDeliverableInput(e.target.value)}
+                            placeholder="https://github.com/.../pull/1 or ipfs://..."
+                            className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none font-mono"
+                        />
+                        <button
+                            onClick={handleSubmitWork}
+                            disabled={isSubmitting || !deliverableInput.trim()}
+                            className="rounded-lg bg-mint px-4 py-2 text-sm font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50 whitespace-nowrap"
+                        >
+                            {isSubmitting ? 'Recording...' : 'Submit Work Proof'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* CLAIM EXPIRED DEADLINE REFUND BUTTON */}
+            {isClient && isAssigned && isExpired && !hasDeliverable && (
+                <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <h4 className="text-sm font-semibold text-rose-300">
+                                ⌛ Bounty Deadline Expired
+                            </h4>
+                            <p className="text-xs text-rose-200/80 mt-0.5">
+                                The assigned freelancer missed the deadline without submitting deliverable proof. You can claim a 100% automated refund.
+                            </p>
+                        </div>
+                        <button
+                            onClick={handleClaimExpiredRefund}
+                            disabled={isSubmitting}
+                            className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-500 transition shadow-md whitespace-nowrap disabled:opacity-50"
+                        >
+                            {isSubmitting ? 'Refunding...' : 'Claim Expired Refund (100%)'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* FREELANCER PROPOSAL APPLICATION SECTION (When Open & Connected wallet is NOT client) */}
+            {isOpen && !isClient && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h4 className="text-sm font-semibold text-[#F1EEE6]">Apply for this Bounty</h4>
+                            <p className="text-xs text-[#9B96AE]">
+                                Submit a bid with your estimated turnaround time and portfolio link.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowProposalForm(!showProposalForm)}
+                            className="rounded-lg bg-violet px-3 py-1.5 text-xs font-semibold text-vault-bg transition hover:brightness-110"
+                        >
+                            {showProposalForm ? 'Close Form' : 'Apply / Bid'}
+                        </button>
+                    </div>
+
+                    {showProposalForm && (
+                        <form onSubmit={handleProposalSubmit} className="mt-4 space-y-3 pt-3 border-t border-white/10">
+                            <div>
+                                <label className="text-xs font-medium text-[#9B96AE]">
+                                    Cover Letter & Approach *
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    value={coverLetter}
+                                    onChange={(e) => setCoverLetter(e.target.value)}
+                                    placeholder="Explain how you will complete this bounty and your relevant experience..."
+                                    className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-medium text-[#9B96AE]">
+                                        Estimated Turnaround (Days)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={timelineDays}
+                                        onChange={(e) => setTimelineDays(e.target.value)}
+                                        className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
+                                        placeholder="7"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-[#9B96AE]">
+                                        Portfolio / GitHub URL (Optional)
+                                    </label>
+                                    <input
+                                        value={portfolioUrl}
+                                        onChange={(e) => setPortfolioUrl(e.target.value)}
+                                        placeholder="https://github.com/yourhandle"
+                                        className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={isSubmitting || !coverLetter.trim()}
+                                className="rounded-lg bg-gold px-4 py-2 text-xs font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50"
+                            >
+                                {isSubmitting ? 'Submitting...' : 'Send Proposal'}
+                            </button>
+                        </form>
+                    )}
+                </div>
+            )}
+
+            {/* APPLICANT REVIEW PANEL (Visible when Open to Client and curious visitors) */}
+            {isOpen && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-semibold text-[#F1EEE6]">
+                                Freelancer Proposals
+                            </h4>
+                            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-mono text-[#9B96AE]">
+                                {proposals.length}
+                            </span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowProposalsList(!showProposalsList)}
+                            className="text-xs text-gold hover:text-white transition underline"
+                        >
+                            {showProposalsList ? 'Hide Applicants' : `View Proposals (${proposals.length})`}
+                        </button>
+                    </div>
+
+                    {showProposalsList && (
+                        <div className="mt-3 space-y-3 pt-3 border-t border-white/10">
+                            {proposalsLoading ? (
+                                <p className="text-xs text-[#9B96AE]">Loading proposals...</p>
+                            ) : proposals.length === 0 ? (
+                                <p className="text-xs text-[#9B96AE]">
+                                    No proposals submitted yet. Freelancers can apply above.
+                                </p>
+                            ) : (
+                                proposals.map((p) => (
+                                    <div
+                                        key={p.id}
+                                        className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-2"
+                                    >
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <a
+                                                    href={getExplorerAddressUrl(p.freelancerAddress, chainId)}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="font-mono text-xs text-violet-300 hover:text-white transition underline"
+                                                >
+                                                    {p.freelancerAddress.slice(0, 6)}...{p.freelancerAddress.slice(-4)}
+                                                </a>
+                                                <span className="text-[11px] text-[#9B96AE]">
+                                                    ⏱ {p.timelineDays} days
+                                                </span>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                <span
+                                                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                                        p.status === 'ACCEPTED'
+                                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                                            : p.status === 'REJECTED'
+                                                            ? 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                                                            : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+                                                    }`}
+                                                >
+                                                    {p.status}
+                                                </span>
+
+                                                {/* 1-Click Hire Button for Client */}
+                                                {isClient && isOpen && p.status === 'PENDING' && (
+                                                    <button
+                                                        onClick={() => handleHireProposal(p)}
+                                                        disabled={isSubmitting}
+                                                        className="rounded-lg bg-mint px-3 py-1 text-xs font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50 shadow-sm"
+                                                    >
+                                                        ⚡ Hire & Assign On-Chain
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <p className="text-xs text-[#F1EEE6] leading-relaxed whitespace-pre-wrap">
+                                            {p.coverLetter}
+                                        </p>
+
+                                        {p.portfolioUrl && (
+                                            <a
+                                                href={
+                                                    p.portfolioUrl.startsWith('http')
+                                                        ? p.portfolioUrl
+                                                        : `https://${p.portfolioUrl}`
+                                                }
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-block text-[11px] text-gold hover:text-white transition underline"
+                                            >
+                                                Portfolio / Link ↗
+                                            </a>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </div>
             )}
 
             {/* Disputed Alert Banner */}
             {isDisputed && (
-                <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
                     ⚠️ <strong>Dispute Active:</strong> Escrow is currently frozen. Awaiting arbiter resolution.
                 </div>
             )}
 
             {/* Cancelled Alert Banner */}
             {isCancelled && (
-                <div className="mt-4 rounded-xl border border-gray-500/30 bg-gray-500/10 p-3 text-xs text-gray-400">
-                    ✕ <strong>Cancelled:</strong> This bounty has been cancelled and 100% of deposited ETH was refunded.
+                <div className="rounded-xl border border-gray-500/30 bg-gray-500/10 p-3 text-xs text-gray-400">
+                    ✕ <strong>Cancelled:</strong> This bounty has been cancelled and deposited funds refunded.
                 </div>
             )}
 
-            {/* ACTION: Client Assign & Cancel when Open */}
+            {/* CLIENT OPEN BOUNTY ACTIONS (Manual address input & cancel) */}
             {isClient && isOpen && (
-                <div className="mt-4 border-t border-white/10 pt-4">
-                    <label className="text-sm text-[#9B96AE]">Assign Freelancer address</label>
-                    <input
-                        value={freelancerInput}
-                        onChange={(e) => setFreelancerInput(e.target.value)}
-                        placeholder="0x..."
-                        className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-mono text-sm text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
-                    />
-                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                <div className="border-t border-white/10 pt-3 space-y-3">
+                    <div className="flex items-center justify-between">
                         <button
-                            onClick={handleAssign}
-                            disabled={isSubmitting}
-                            className="rounded-lg bg-violet px-4 py-2 text-sm font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50"
+                            type="button"
+                            onClick={() => setShowManualAssign(!showManualAssign)}
+                            className="text-xs text-[#9B96AE] hover:text-white transition underline"
                         >
-                            {isSubmitting ? 'Assigning...' : 'Assign Freelancer'}
+                            {showManualAssign ? 'Hide manual address input' : 'Or assign wallet address directly'}
                         </button>
+
                         <button
                             onClick={handleCancelAndRefund}
                             disabled={isSubmitting}
-                            className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
+                            className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
                         >
                             Cancel & Refund (100%)
                         </button>
                     </div>
+
+                    {showManualAssign && (
+                        <div className="space-y-2">
+                            <label className="text-xs text-[#9B96AE]">Direct Freelancer Address</label>
+                            <div className="flex gap-2">
+                                <input
+                                    value={freelancerInput}
+                                    onChange={(e) => setFreelancerInput(e.target.value)}
+                                    placeholder="0x..."
+                                    className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-mono text-xs text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
+                                />
+                                <button
+                                    onClick={handleAssign}
+                                    disabled={isSubmitting}
+                                    className="rounded-lg bg-violet px-4 py-2 text-xs font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50"
+                                >
+                                    Assign
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* ACTION: Non-Client Cancel & Refund button if open and client doesn't use assign */}
-            {!isClient && isOpen && (
-                <p className="mt-3 text-xs text-[#9B96AE]">Bounty is open for freelancer assignment.</p>
-            )}
-
-            {/* ACTION: Assigned Bounty Triggers (Raise Dispute, Release Payment, Refund Remainder) */}
+            {/* ASSIGNED BOUNTY ACTIONS (Raise Dispute, Release Payment, Refund Remainder) */}
             {isAssigned && (
-                <div className="mt-4 border-t border-white/10 pt-4 flex flex-wrap items-center gap-2">
+                <div className="border-t border-white/10 pt-3 flex flex-wrap items-center gap-2">
                     {isClient && !hasMilestones && (
                         <button
                             onClick={handleRelease}
@@ -509,9 +1065,9 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                 </div>
             )}
 
-            {/* ARBITER RESOLUTION PANEL: Visible when connectedAddress == bounty.arbiter AND status == Disputed */}
+            {/* ARBITER RESOLUTION PANEL */}
             {isArbiter && isDisputed && (
-                <div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/5 p-4">
+                <div className="rounded-xl border border-red-500/40 bg-red-500/5 p-4">
                     <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-red-300">⚖️ Arbiter Settlement Panel</h3>
                         <span className="font-mono text-xs text-[#9B96AE]">
@@ -553,9 +1109,9 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                 </div>
             )}
 
-            {/* Milestones Section */}
+            {/* MILESTONES SECTION */}
             {hasFreelancer && !isCancelled && !isDisputed && (
-                <div className="mt-4 border-t border-white/10 pt-4">
+                <div className="border-t border-white/10 pt-3">
                     <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-[#F1EEE6]">Milestones</h3>
                         {milestones.length > 0 && (
@@ -568,7 +1124,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                     {milestonesLoading ? (
                         <p className="mt-2 text-sm text-[#9B96AE]">Loading milestones...</p>
                     ) : milestones.length === 0 ? (
-                        <p className="mt-2 text-sm text-[#9B96AE]">No milestones yet.</p>
+                        <p className="mt-2 text-sm text-[#9B96AE]">No milestones added.</p>
                     ) : (
                         <div className="mt-2 space-y-2">
                             {milestones.map((m) => (
@@ -624,19 +1180,12 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                 </div>
             )}
 
-            {statusMessage && <div className="mt-3 text-sm text-[#9B96AE]">{statusMessage}</div>}
+            {/* Status Feedback Message */}
+            {statusMessage && <div className="text-sm text-[#9B96AE]">{statusMessage}</div>}
         </div>
     );
 }
 
-/**
- * Dynamic Status Badges:
- * - Open (Blue)
- * - Assigned (Yellow)
- * - Disputed (Red)
- * - Completed (Green)
- * - Cancelled (Gray)
- */
 function StatusBadge({ status }: { status: number }) {
     switch (status) {
         case 0:
