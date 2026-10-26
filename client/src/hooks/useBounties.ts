@@ -13,6 +13,14 @@ export type Bounty = {
     status: number;
     completed: boolean;
     title: string;
+    description?: string;
+    category: string;
+    skills: string[];
+    disputeReason?: string;
+    deliverableUri: string;
+    submittedAt: number;
+    deadline: number;
+    proposalCount: number;
     arbiter: string;
 };
 
@@ -43,35 +51,67 @@ export function useBounties(refreshKey: number) {
 
                 const count = await contract.bountyCount();
 
-                // Fetch all off-chain titles in one request
-                let metadataMap = new Map<number, string>();
+                // Fetch all off-chain metadata (titles, descriptions, categories, skills, proposals)
+                let metadataMap = new Map<number, any>();
                 try {
                     const res = await fetch(`${API_BASE_URL}/bounties/metadata`);
                     if (res.ok) {
                         const metadataList = await res.json();
-                        metadataMap = new Map(metadataList.map((m: any) => [m.bountyId, m.title]));
+                        metadataMap = new Map(metadataList.map((m: any) => [m.bountyId, m]));
                     }
                 } catch (err) {
                     console.error('Failed to fetch bounty metadata', err);
                 }
 
-                const results: Bounty[] = [];
-                for (let id = 1; id <= Number(count); id++) {
-                    const b = await contract.bounties(id);
-                    const statusNum = Number(b.status ?? (b.completed ? 3 : 0));
-                    results.push({
-                        id,
-                        client: b.client,
-                        freelancer: b.freelancer,
-                        amount: formatEther(b.amount),
-                        remainingBalance: b.remainingBalance !== undefined ? formatEther(b.remainingBalance) : formatEther(b.amount),
-                        status: statusNum,
-                        completed: statusNum === 3 || Boolean(b.completed),
-                        title: metadataMap.get(id) || 'Untitled bounty',
-                        arbiter: arbiterAddress,
-                    });
+                const totalCount = Number(count);
+                const bountyPromises: Promise<Bounty>[] = [];
+
+                for (let id = 1; id <= totalCount; id++) {
+                    bountyPromises.push(
+                        (async () => {
+                            const [b, deliverableUri, submittedAtRaw, deadlineRaw] = await Promise.all([
+                                contract.bounties(id),
+                                contract.bountyDeliverables(id).catch(() => ''),
+                                contract.bountySubmittedAt(id).catch(() => 0n),
+                                contract.bountyDeadlines(id).catch(() => 0n),
+                            ]);
+
+                            const statusNum = Number(b.status ?? (b.completed ? 3 : 0));
+                            const meta = metadataMap.get(id);
+                            const skillsArray = meta?.skills
+                                ? String(meta.skills)
+                                      .split(',')
+                                      .map((s: string) => s.trim())
+                                      .filter(Boolean)
+                                : [];
+
+                            return {
+                                id,
+                                client: b.client,
+                                freelancer: b.freelancer,
+                                amount: formatEther(b.amount),
+                                remainingBalance:
+                                    b.remainingBalance !== undefined
+                                        ? formatEther(b.remainingBalance)
+                                        : formatEther(b.amount),
+                                status: statusNum,
+                                completed: statusNum === 3 || Boolean(b.completed),
+                                title: meta?.title || `Bounty #${id}`,
+                                description: meta?.description || '',
+                                category: meta?.category || 'General',
+                                skills: skillsArray,
+                                disputeReason: meta?.disputeReason || undefined,
+                                deliverableUri: deliverableUri || '',
+                                submittedAt: Number(submittedAtRaw || 0n),
+                                deadline: Number(deadlineRaw || 0n),
+                                proposalCount: meta?.proposals?.length ?? meta?._count?.proposals ?? 0,
+                                arbiter: arbiterAddress,
+                            };
+                        })()
+                    );
                 }
 
+                const results = await Promise.all(bountyPromises);
                 setBounties(results.reverse());
             } catch (err) {
                 console.error('Failed to fetch bounties:', err);
