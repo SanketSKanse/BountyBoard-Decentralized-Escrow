@@ -6,23 +6,36 @@ datasource db {
   provider = "postgresql"
 }
 
-// Domain models will be expanded in Phase 3 when the REST API is implemented.
 model User {
-  id        String   @id @default(cuid())
-  wallet    String   @unique
-  createdAt DateTime @default(now())
+  id                 String          @id @default(cuid())
+  wallet             String          @unique
+  username           String?
+  bio                String?
+  avatarUrl          String?
+  skills             String?         // comma-separated tags
+  githubHandle       String?
+  completedAsWorker  Int             @default(0)
+  completedAsClient  Int             @default(0)
+  totalEarnedEth     Float           @default(0)
+  totalEarnedUsd     Float           @default(0)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  comments           BountyComment[]
 }
 
 model BountyMetadata {
-  id            String     @id @default(cuid())
-  bountyId      Int        @unique
+  id            String          @id @default(cuid())
+  bountyId      Int             @unique
   title         String
   description   String?
-  category      String     @default("General")
-  skills        String?    // Comma-separated skill tags, e.g. "Solidity,React,Ethers.js"
+  category      String          @default("General")
+  skills        String?         // Comma-separated skill tags, e.g. "Solidity,React,Ethers.js"
+  tokenSymbol   String          @default("ETH") // e.g. "ETH" or "USDC"
+  tokenAddress  String?         // address of ERC20 token or null for ETH
   disputeReason String?
-  createdAt     DateTime   @default(now())
+  createdAt     DateTime        @default(now())
   proposals     Proposal[]
+  comments      BountyComment[]
 }
 
 model Proposal {
@@ -37,4 +50,15 @@ model Proposal {
   bounty            BountyMetadata @relation(fields: [bountyId], references: [bountyId], onDelete: Cascade)
 
   @@unique([bountyId, freelancerAddress])
+}
+
+model BountyComment {
+  id        String         @id @default(cuid())
+  bountyId  Int
+  author    String         // wallet address
+  content   String
+  type      String         @default("MESSAGE") // "MESSAGE", "REVISION_REQUEST", "APPROVAL_NOTE"
+  createdAt DateTime       @default(now())
+  bounty    BountyMetadata @relation(fields: [bountyId], references: [bountyId], onDelete: Cascade)
+  user      User?          @relation(fields: [author], references: [wallet])
 }
