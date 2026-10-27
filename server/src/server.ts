@@ -2,6 +2,7 @@ import './env.js';
 import express, { type Request, type Response } from "express";
 import cors from "cors";
 import { bountiesRouter } from './routes/bounties.js';
+import { usersRouter } from './routes/users.js';
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use(cors({
 
 app.use(express.json());
 app.use('/api/bounties', bountiesRouter);
+app.use('/api/users', usersRouter);
 
 app.get("/", (_req: Request, res: Response) => {
   res.json({
