@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Contract, isAddress, parseEther, type JsonRpcSigner } from 'ethers';
+import { Contract, isAddress, parseEther, parseUnits, type JsonRpcSigner } from 'ethers';
 import BountyEscrowArtifact from '../contracts/BountyEscrow.json';
 import { BOUNTY_ESCROW_ADDRESS, getExplorerAddressUrl, getExplorerTxUrl } from '../contracts/config';
 import { useMilestones } from '../hooks/useMilestones';
@@ -19,15 +19,36 @@ export type Proposal = {
     createdAt: string;
 };
 
+export type BountyComment = {
+    id: string;
+    bountyId: number;
+    author: string;
+    content: string;
+    type: 'MESSAGE' | 'REVISION_REQUEST' | 'APPROVAL_NOTE';
+    createdAt: string;
+    user?: {
+        wallet: string;
+        username?: string | null;
+        avatarUrl?: string | null;
+        completedAsWorker?: number;
+        completedAsClient?: number;
+    } | null;
+};
+
 type Props = {
     bounty: Bounty;
     connectedAddress: string | null;
     signer: JsonRpcSigner | null;
     chainId?: bigint | null;
     onUpdated: () => void;
+    onViewProfile?: (wallet: string) => void;
 };
 
-export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdated }: Props) {
+export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdated, onViewProfile }: Props) {
+    // Currency & decimals
+    const currency = bounty.tokenSymbol || 'ETH';
+    const decimals = currency === 'USDC' ? 6 : 18;
+
     // Form & action states
     const [freelancerInput, setFreelancerInput] = useState('');
     const [showManualAssign, setShowManualAssign] = useState(false);
@@ -49,6 +70,15 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
     const [coverLetter, setCoverLetter] = useState('');
     const [timelineDays, setTimelineDays] = useState('7');
     const [portfolioUrl, setPortfolioUrl] = useState('');
+
+    // Deliverable Discussion & Revision states
+    const [comments, setComments] = useState<BountyComment[]>([]);
+    const [commentsLoading, setCommentsLoading] = useState(false);
+    const [commentsRefreshKey, setCommentsRefreshKey] = useState(0);
+    const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+    const [commentContent, setCommentContent] = useState('');
+    const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+    const [commentStatusMessage, setCommentStatusMessage] = useState<string | null>(null);
 
     const { milestones, isLoading: milestonesLoading } = useMilestones(bounty.id, milestoneRefreshKey);
 
@@ -118,6 +148,73 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
             isMounted = false;
         };
     }, [bounty.id, proposalRefreshKey]);
+
+    // Fetch discussion comments / feedback
+    useEffect(() => {
+        let isMounted = true;
+        async function fetchComments() {
+            setCommentsLoading(true);
+            try {
+                const res = await fetch(`${API_BASE_URL}/bounties/${bounty.id}/comments`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isMounted) setComments(Array.isArray(data) ? data : []);
+                }
+            } catch (err) {
+                console.error(`Failed to fetch comments for bounty ${bounty.id}`, err);
+            } finally {
+                if (isMounted) setCommentsLoading(false);
+            }
+        }
+
+        fetchComments();
+        return () => {
+            isMounted = false;
+        };
+    }, [bounty.id, commentsRefreshKey]);
+
+    async function handleSendComment(type: 'MESSAGE' | 'REVISION_REQUEST' | 'APPROVAL_NOTE') {
+        if (!connectedAddress) {
+            setCommentStatusMessage('Please connect your wallet to post feedback or revision notes.');
+            return;
+        }
+        if (!commentContent.trim()) {
+            setCommentStatusMessage('Please write feedback or revision notes before submitting.');
+            return;
+        }
+
+        try {
+            setIsSubmittingComment(true);
+            setCommentStatusMessage(null);
+            const res = await fetch(`${API_BASE_URL}/bounties/${bounty.id}/comments`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    author: connectedAddress,
+                    content: commentContent.trim(),
+                    type,
+                    clientAddress: bounty.client,
+                    freelancerAddress: bounty.freelancer,
+                    arbiterAddress: bounty.arbiter,
+                }),
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || 'Failed to post feedback note');
+            }
+
+            setCommentContent('');
+            setCommentsRefreshKey((k) => k + 1);
+            setIsCommentsOpen(true);
+            onUpdated();
+        } catch (err: any) {
+            console.error('Comment error:', err);
+            setCommentStatusMessage(err.message || 'Failed to post message.');
+        } finally {
+            setIsSubmittingComment(false);
+        }
+    }
 
     // Handle Manual Assign
     async function handleAssign() {
@@ -421,7 +518,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
 
         if (Math.abs(sum - remaining) > 0.00001) {
             setStatusMessage(
-                `Refund + Payout (${sum.toFixed(4)} ETH) must exactly equal Remaining Balance (${remaining.toFixed(4)} ETH).`
+                `Refund + Payout (${sum.toFixed(4)} ${currency}) must exactly equal Remaining Balance (${remaining.toFixed(4)} ${currency}).`
             );
             return;
         }
@@ -432,8 +529,8 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
             const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, signer);
             const tx = await contract.resolveDispute(
                 bounty.id,
-                parseEther(clientRefundInput),
-                parseEther(freelancerPayoutInput)
+                parseUnits(clientRefundInput, decimals),
+                parseUnits(freelancerPayoutInput, decimals)
             );
             setStatusMessage('Transaction sent, waiting to be mined...');
             await tx.wait();
@@ -545,7 +642,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
         }
         const unallocated = Number(bounty.amount) - allocatedAmount;
         if (amountNum > unallocated) {
-            setStatusMessage(`Amount exceeds remaining unallocated funds (${unallocated.toFixed(4)} ETH left).`);
+            setStatusMessage(`Amount exceeds remaining unallocated funds (${unallocated.toFixed(4)} ${currency} left).`);
             return;
         }
 
@@ -553,7 +650,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
             setIsSubmitting(true);
             setStatusMessage('Waiting for confirmation in MetaMask...');
             const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, signer);
-            const tx = await contract.createMilestone(bounty.id, milestoneDescription, parseEther(milestoneAmount));
+            const tx = await contract.createMilestone(bounty.id, milestoneDescription, parseUnits(milestoneAmount, decimals));
             setStatusMessage('Transaction sent, waiting to be mined...');
             await tx.wait();
             setStatusMessage('Milestone added.');
@@ -608,11 +705,22 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
             <div>
                 <h2 className="text-xl font-semibold text-[#F1EEE6] leading-snug">{bounty.title}</h2>
                 <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="font-display text-2xl text-gold">{bounty.amount} ETH</p>
+                    <div className="flex items-center gap-2">
+                        <p className="font-display text-2xl text-gold">{bounty.amount} {currency}</p>
+                        <span
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                                currency === 'USDC'
+                                    ? 'bg-[#2775CA]/20 text-[#2775CA] border border-[#2775CA]/40'
+                                    : 'bg-gold/15 text-gold border border-gold/30'
+                            }`}
+                        >
+                            {currency}
+                        </span>
+                    </div>
                     {bounty.remainingBalance && (
                         <p className="text-xs text-[#9B96AE]">
                             Remaining Escrow:{' '}
-                            <span className="font-mono text-[#F1EEE6]">{bounty.remainingBalance} ETH</span>
+                            <span className="font-mono text-[#F1EEE6]">{bounty.remainingBalance} {currency}</span>
                         </p>
                     )}
                 </div>
@@ -656,34 +764,56 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                 </div>
             )}
 
-            {/* Address Details with Clickable Block Explorer Links */}
-            <div className="space-y-1 text-xs text-[#9B96AE] border-t border-white/10 pt-3">
-                <p>
-                    Client:{' '}
+            {/* Address Details with Clickable Block Explorer Links & Profile Modals */}
+            <div className="space-y-1.5 text-xs text-[#9B96AE] border-t border-white/10 pt-3">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <span>Client:</span>
+                    <button
+                        type="button"
+                        onClick={() => onViewProfile?.(bounty.client)}
+                        className="font-mono text-[#F1EEE6] hover:text-violet transition underline decoration-white/20 inline-flex items-center gap-1 cursor-pointer"
+                        title="View User Reputation Profile"
+                    >
+                        <span>{bounty.client}</span>
+                        <span className="text-[10px] bg-white/10 px-1.5 py-0.2 rounded text-gold">👤 Profile</span>
+                    </button>
                     <a
                         href={getExplorerAddressUrl(bounty.client, chainId)}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-mono text-[#F1EEE6] hover:text-violet transition underline decoration-white/20"
+                        className="text-[#9B96AE] hover:text-white text-[11px]"
+                        title="View on block explorer"
                     >
-                        {bounty.client}
+                        ↗
                     </a>
-                </p>
-                <p>
-                    Freelancer:{' '}
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <span>Freelancer:</span>
                     {hasFreelancer ? (
-                        <a
-                            href={getExplorerAddressUrl(bounty.freelancer, chainId)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-mono text-[#F1EEE6] hover:text-violet transition underline decoration-white/20"
-                        >
-                            {bounty.freelancer}
-                        </a>
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => onViewProfile?.(bounty.freelancer)}
+                                className="font-mono text-[#F1EEE6] hover:text-violet transition underline decoration-white/20 inline-flex items-center gap-1 cursor-pointer"
+                                title="View User Reputation Profile"
+                            >
+                                <span>{bounty.freelancer}</span>
+                                <span className="text-[10px] bg-white/10 px-1.5 py-0.2 rounded text-gold">👤 Profile</span>
+                            </button>
+                            <a
+                                href={getExplorerAddressUrl(bounty.freelancer, chainId)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[#9B96AE] hover:text-white text-[11px]"
+                                title="View on block explorer"
+                            >
+                                ↗
+                            </a>
+                        </>
                     ) : (
                         <span className="font-mono text-[#9B96AE]">Not assigned yet</span>
                     )}
-                </p>
+                </div>
                 {bounty.arbiter && (
                     <p className="text-[11px]">
                         Arbiter:{' '}
@@ -741,6 +871,190 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                             <span>↗</span>
                         </a>
                     </div>
+                </div>
+            )}
+
+            {/* DELIVERABLE DISCUSSION & REVISION THREAD */}
+            {hasFreelancer && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-base">💬</span>
+                            <h4 className="text-sm font-semibold text-white">
+                                Discussion & Revisions
+                            </h4>
+                            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-mono text-[#9B96AE]">
+                                {comments.length}
+                            </span>
+                            {comments.some((c) => c.type === 'REVISION_REQUEST') && (
+                                <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-0.5 text-[10px] font-bold text-amber-300 animate-pulse">
+                                    ⚠️ Revision Requested
+                                </span>
+                            )}
+                            {comments.some((c) => c.type === 'APPROVAL_NOTE') && (
+                                <span className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                                    ✅ Approval Note
+                                </span>
+                            )}
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setIsCommentsOpen(!isCommentsOpen)}
+                            className="text-xs text-gold hover:text-white transition font-medium"
+                        >
+                            {isCommentsOpen ? 'Collapse Discussion ▲' : 'Open Thread ▼'}
+                        </button>
+                    </div>
+
+                    {isCommentsOpen && (
+                        <div className="space-y-3 pt-2 border-t border-white/10">
+                            {commentsLoading ? (
+                                <div className="py-4 text-center text-xs text-[#9B96AE] animate-pulse">
+                                    Loading discussion messages...
+                                </div>
+                            ) : comments.length === 0 ? (
+                                <div className="rounded-lg border border-white/5 bg-white/[0.02] py-4 text-center text-xs text-[#9B96AE]">
+                                    No revisions or feedback messages posted yet.
+                                </div>
+                            ) : (
+                                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                    {comments.map((c) => (
+                                        <div
+                                            key={c.id}
+                                            className="rounded-lg bg-white/5 border border-white/10 p-3 space-y-1.5"
+                                        >
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onViewProfile?.(c.author)}
+                                                        className="font-semibold text-xs text-white hover:text-gold transition flex items-center gap-1.5 cursor-pointer"
+                                                        title="View user reputation"
+                                                    >
+                                                        <span className="h-5 w-5 rounded-full bg-violet/30 border border-violet/40 flex items-center justify-center text-[10px] font-bold text-violet-200">
+                                                            {(c.user?.username || c.author.slice(2, 4))
+                                                                .slice(0, 2)
+                                                                .toUpperCase()}
+                                                        </span>
+                                                        <span>
+                                                            {c.user?.username ||
+                                                                `${c.author.slice(0, 6)}...${c.author.slice(-4)}`}
+                                                        </span>
+                                                    </button>
+
+                                                    {c.author.toLowerCase() === bounty.client.toLowerCase() && (
+                                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                                            Client
+                                                        </span>
+                                                    )}
+                                                    {c.author.toLowerCase() === bounty.freelancer.toLowerCase() && (
+                                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-violet/20 text-violet-300 border border-violet/30">
+                                                            Freelancer
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    {c.type === 'REVISION_REQUEST' && (
+                                                        <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                                                            ⚠️ Revision Requested
+                                                        </span>
+                                                    )}
+                                                    {c.type === 'APPROVAL_NOTE' && (
+                                                        <span className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                                                            ✅ Approval Note
+                                                        </span>
+                                                    )}
+                                                    {c.type === 'MESSAGE' && (
+                                                        <span className="rounded-full bg-white/10 border border-white/10 px-2 py-0.5 text-[10px] font-medium text-[#9B96AE]">
+                                                            💬 Note
+                                                        </span>
+                                                    )}
+                                                    <span className="text-[10px] text-[#9B96AE]">
+                                                        {new Date(c.createdAt).toLocaleTimeString([], {
+                                                            hour: '2-digit',
+                                                            minute: '2-digit',
+                                                        })}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <p className="text-xs text-[#F1EEE6] leading-relaxed whitespace-pre-wrap pl-7">
+                                                {c.content}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Comment composer */}
+                            <div className="space-y-2 pt-2 border-t border-white/10">
+                                <textarea
+                                    rows={2}
+                                    value={commentContent}
+                                    onChange={(e) => setCommentContent(e.target.value)}
+                                    placeholder={
+                                        isClient
+                                            ? 'Write feedback or request specific revisions before escrow release...'
+                                            : isFreelancer
+                                            ? 'Provide revision notes, answers to feedback, or deliverable updates...'
+                                            : 'Add a discussion note...'
+                                    }
+                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
+                                />
+
+                                {commentStatusMessage && (
+                                    <p className="text-xs text-amber-300 font-medium">
+                                        {commentStatusMessage}
+                                    </p>
+                                )}
+
+                                <div className="flex flex-wrap items-center justify-end gap-2">
+                                    {isClient && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                disabled={isSubmittingComment || !commentContent.trim()}
+                                                onClick={() => handleSendComment('REVISION_REQUEST')}
+                                                className="rounded-lg border border-amber-500/40 bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/30 transition disabled:opacity-50"
+                                            >
+                                                {isSubmittingComment ? 'Sending...' : '⚠️ Request Revision'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={isSubmittingComment || !commentContent.trim()}
+                                                onClick={() => handleSendComment('APPROVAL_NOTE')}
+                                                className="rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/30 transition disabled:opacity-50"
+                                            >
+                                                {isSubmittingComment ? 'Sending...' : '✅ Approve Work'}
+                                            </button>
+                                        </>
+                                    )}
+
+                                    {isFreelancer && (
+                                        <button
+                                            type="button"
+                                            disabled={isSubmittingComment || !commentContent.trim()}
+                                            onClick={() => handleSendComment('REVISION_REQUEST')}
+                                            className="rounded-lg border border-amber-500/40 bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/30 transition disabled:opacity-50"
+                                        >
+                                            {isSubmittingComment ? 'Sending...' : '📝 Add Revision / Notes'}
+                                        </button>
+                                    )}
+
+                                    <button
+                                        type="button"
+                                        disabled={isSubmittingComment || !commentContent.trim()}
+                                        onClick={() => handleSendComment('MESSAGE')}
+                                        className="rounded-lg bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs font-semibold text-white transition disabled:opacity-50"
+                                    >
+                                        {isSubmittingComment ? 'Sending...' : '💬 Send Note'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -907,13 +1221,25 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                     >
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                             <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onViewProfile?.(p.freelancerAddress)}
+                                                    className="font-mono text-xs text-violet-300 hover:text-white transition underline flex items-center gap-1 cursor-pointer"
+                                                    title="View Applicant Reputation & Badges"
+                                                >
+                                                    <span>{p.freelancerAddress.slice(0, 6)}...{p.freelancerAddress.slice(-4)}</span>
+                                                    <span className="text-[9px] bg-violet/20 border border-violet/40 px-1 py-0.2 rounded text-violet-200">
+                                                        👤 Profile
+                                                    </span>
+                                                </button>
                                                 <a
                                                     href={getExplorerAddressUrl(p.freelancerAddress, chainId)}
                                                     target="_blank"
                                                     rel="noreferrer"
-                                                    className="font-mono text-xs text-violet-300 hover:text-white transition underline"
+                                                    className="text-[11px] text-[#9B96AE] hover:text-white"
+                                                    title="View on block explorer"
                                                 >
-                                                    {p.freelancerAddress.slice(0, 6)}...{p.freelancerAddress.slice(-4)}
+                                                    ↗
                                                 </a>
                                                 <span className="text-[11px] text-[#9B96AE]">
                                                     ⏱ {p.timelineDays} days
@@ -1049,7 +1375,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                             disabled={isSubmitting}
                             className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50"
                         >
-                            Refund Unallocated Remainder ({remainingAmount.toFixed(4)} ETH)
+                            Refund Unallocated Remainder ({remainingAmount.toFixed(4)} {currency})
                         </button>
                     )}
 
@@ -1071,16 +1397,16 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                     <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-red-300">⚖️ Arbiter Settlement Panel</h3>
                         <span className="font-mono text-xs text-[#9B96AE]">
-                            Escrow Balance: {bounty.remainingBalance} ETH
+                            Escrow Balance: {bounty.remainingBalance} {currency}
                         </span>
                     </div>
                     <p className="mt-1 text-xs text-[#9B96AE]">
-                        Split the remaining {bounty.remainingBalance} ETH between the client and freelancer.
+                        Split the remaining {bounty.remainingBalance} {currency} between the client and freelancer.
                     </p>
 
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label className="text-xs text-[#9B96AE]">Client Refund (ETH)</label>
+                            <label className="text-xs text-[#9B96AE]">Client Refund ({currency})</label>
                             <input
                                 value={clientRefundInput}
                                 onChange={(e) => setClientRefundInput(e.target.value)}
@@ -1089,7 +1415,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                             />
                         </div>
                         <div>
-                            <label className="text-xs text-[#9B96AE]">Freelancer Payout (ETH)</label>
+                            <label className="text-xs text-[#9B96AE]">Freelancer Payout ({currency})</label>
                             <input
                                 value={freelancerPayoutInput}
                                 onChange={(e) => setFreelancerPayoutInput(e.target.value)}
@@ -1116,7 +1442,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         <h3 className="text-sm font-semibold text-[#F1EEE6]">Milestones</h3>
                         {milestones.length > 0 && (
                             <p className="text-xs text-[#9B96AE]">
-                                {allocatedAmount.toFixed(4)} / {bounty.amount} ETH allocated
+                                {allocatedAmount.toFixed(4)} / {bounty.amount} {currency} allocated
                             </p>
                         )}
                     </div>
@@ -1134,7 +1460,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                 >
                                     <div>
                                         <p className="text-sm text-[#F1EEE6]">{m.description}</p>
-                                        <p className="font-mono text-xs text-[#9B96AE]">{m.amount} ETH</p>
+                                        <p className="font-mono text-xs text-[#9B96AE]">{m.amount} {currency}</p>
                                     </div>
                                     {m.completed ? (
                                         <span className="text-xs font-medium text-mint">Paid</span>
@@ -1165,7 +1491,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                             <input
                                 value={milestoneAmount}
                                 onChange={(e) => setMilestoneAmount(e.target.value)}
-                                placeholder={`Amount (up to ${(Number(bounty.amount) - allocatedAmount).toFixed(4)} ETH)`}
+                                placeholder={`Amount (up to ${(Number(bounty.amount) - allocatedAmount).toFixed(4)} ${currency})`}
                                 className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
                             />
                             <button
