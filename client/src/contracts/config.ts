@@ -68,3 +68,27 @@ export function getExplorerTxUrl(txHash: string, chainId?: bigint | number | str
     const net = getNetworkConfig(chainId);
     return `${net.blockExplorerUrl}/tx/${txHash}`;
 }
+
+export const USDC_ADDRESSES: Record<string, string> = {
+    '84532': '0x036CbD53842c5426634e7929541eC2318f3dCF7e', // Base Sepolia USDC
+    '11155420': '0x5fd84259d66Cd46123540766Be93DFE6D43130D7', // OP Sepolia USDC
+};
+
+export function getUsdcAddress(chainId?: bigint | number | string | null): string {
+    const str = chainId?.toString();
+    if (str && USDC_ADDRESSES[str]) {
+        return USDC_ADDRESSES[str];
+    }
+    const defaultKey = BOUNTY_BOARD_CHAIN_ID.toString();
+    return USDC_ADDRESSES[defaultKey] || USDC_ADDRESSES['84532'];
+}
+
+export const ERC20_ABI = [
+    'function approve(address spender, uint256 amount) returns (bool)',
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function balanceOf(address account) view returns (uint256)',
+    'function decimals() view returns (uint8)',
+    'function symbol() view returns (string)',
+    'function name() view returns (string)',
+];
+

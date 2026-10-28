@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { Contract, parseEther, type JsonRpcSigner } from 'ethers';
+import { Contract, parseEther, parseUnits, type JsonRpcSigner } from 'ethers';
 import BountyEscrowArtifact from '../contracts/BountyEscrow.json';
-import { BOUNTY_ESCROW_ADDRESS, getExplorerTxUrl } from '../contracts/config';
+import {
+    BOUNTY_ESCROW_ADDRESS,
+    getExplorerTxUrl,
+    getUsdcAddress,
+    ERC20_ABI,
+} from '../contracts/config';
 import { API_BASE_URL } from '../config';
 
 const CATEGORIES = [
@@ -24,6 +29,7 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
     const [description, setDescription] = useState('');
     const [category, setCategory] = useState('General');
     const [skills, setSkills] = useState('');
+    const [currency, setCurrency] = useState<'ETH' | 'USDC'>('ETH');
     const [reward, setReward] = useState('');
     const [deadlineDays, setDeadlineDays] = useState('');
     const [status, setStatus] = useState<React.ReactNode | null>(null);
@@ -51,22 +57,53 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
 
         try {
             setIsSubmitting(true);
-            setStatus('Waiting for you to confirm in MetaMask...');
-
             const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, signer);
-
             let tx;
-            if (hasDeadline) {
-                try {
-                    tx = await contract.createBountyWithDeadline(deadlineTimestamp, {
-                        value: parseEther(reward),
-                    });
-                } catch (deadlineErr) {
-                    console.warn('createBountyWithDeadline failed, falling back to standard createBounty:', deadlineErr);
-                    tx = await contract.createBounty({ value: parseEther(reward) });
+
+            if (currency === 'USDC') {
+                const usdcAddress = getUsdcAddress(chainId);
+                const usdcAmount = parseUnits(reward, 6);
+                const usdcContract = new Contract(usdcAddress, ERC20_ABI, signer);
+                const userAddress = await signer.getAddress();
+
+                setStatus('Checking USDC allowance for escrow...');
+                const currentAllowance: bigint = await usdcContract.allowance(
+                    userAddress,
+                    BOUNTY_ESCROW_ADDRESS
+                );
+
+                if (currentAllowance < usdcAmount) {
+                    setStatus('Step 1/2: Please approve USDC spending in your wallet...');
+                    const approveTx = await usdcContract.approve(BOUNTY_ESCROW_ADDRESS, usdcAmount);
+                    setStatus('Step 1/2: Confirming USDC approval on-chain...');
+                    await approveTx.wait();
+                }
+
+                setStatus('Step 2/2: Confirming token bounty creation in your wallet...');
+                if (hasDeadline) {
+                    tx = await contract.createTokenBountyWithDeadline(
+                        usdcAddress,
+                        usdcAmount,
+                        deadlineTimestamp
+                    );
+                } else {
+                    tx = await contract.createTokenBounty(usdcAddress, usdcAmount);
                 }
             } else {
-                tx = await contract.createBounty({ value: parseEther(reward) });
+                setStatus('Waiting for you to confirm transaction in your wallet...');
+                const ethAmount = parseEther(reward);
+                if (hasDeadline) {
+                    try {
+                        tx = await contract.createBountyWithDeadline(deadlineTimestamp, {
+                            value: ethAmount,
+                        });
+                    } catch (deadlineErr) {
+                        console.warn('createBountyWithDeadline fallback:', deadlineErr);
+                        tx = await contract.createBounty({ value: ethAmount });
+                    }
+                } else {
+                    tx = await contract.createBounty({ value: ethAmount });
+                }
             }
 
             setStatus('Transaction sent, waiting for confirmation on-chain...');
@@ -87,7 +124,7 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
 
             if (bountyId) {
                 // If standard createBounty was used with a deadline, update deadline on-chain
-                if (hasDeadline && !receipt.logs.some((l: any) => {
+                if (currency === 'ETH' && hasDeadline && !receipt.logs.some((l: any) => {
                     try {
                         return contract.interface.parseLog(l)?.name === 'DeadlineUpdated';
                     } catch {
@@ -111,6 +148,8 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                         description: description.trim(),
                         category,
                         skills: skills.trim(),
+                        tokenSymbol: currency,
+                        tokenAddress: currency === 'USDC' ? getUsdcAddress(chainId) : null,
                     }),
                 });
 
@@ -231,17 +270,50 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                     {/* Reward & Deadline Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="text-xs font-medium text-[#9B96AE]">
-                                Escrow Reward (ETH) *
-                            </label>
-                            <input
-                                value={reward}
-                                onChange={(e) => setReward(e.target.value)}
-                                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
-                                placeholder="e.g. 0.5"
-                            />
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-medium text-[#9B96AE]">
+                                    Escrow Reward ({currency}) *
+                                </label>
+                                <div className="flex items-center space-x-1 bg-white/5 p-0.5 rounded-lg border border-white/10">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCurrency('ETH')}
+                                        className={`px-2.5 py-0.5 text-xs font-semibold rounded-md transition ${
+                                            currency === 'ETH'
+                                                ? 'bg-gold text-vault-bg shadow-sm'
+                                                : 'text-[#9B96AE] hover:text-white'
+                                        }`}
+                                    >
+                                        ETH
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCurrency('USDC')}
+                                        className={`px-2.5 py-0.5 text-xs font-semibold rounded-md transition ${
+                                            currency === 'USDC'
+                                                ? 'bg-[#2775CA] text-white shadow-sm'
+                                                : 'text-[#9B96AE] hover:text-white'
+                                        }`}
+                                    >
+                                        USDC
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="relative mt-1">
+                                <input
+                                    value={reward}
+                                    onChange={(e) => setReward(e.target.value)}
+                                    className="w-full rounded-lg border border-white/10 bg-white/5 pl-3 pr-14 py-2 text-sm text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
+                                    placeholder={currency === 'ETH' ? 'e.g. 0.5' : 'e.g. 100'}
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs font-semibold text-[#9B96AE]">
+                                    {currency}
+                                </span>
+                            </div>
                             <span className="text-[11px] text-[#9B96AE]/70 block mt-0.5">
-                                Deposited directly into the escrow smart contract
+                                {currency === 'USDC'
+                                    ? 'USDC testnet token (prompts approval if allowance < amount)'
+                                    : 'Deposited directly into the escrow smart contract'}
                             </span>
                         </div>
 
@@ -269,7 +341,7 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                             disabled={isSubmitting}
                             className="rounded-xl bg-gold px-6 py-2.5 text-sm font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50 shadow-md"
                         >
-                            {isSubmitting ? 'Creating Bounty...' : 'Create & Escrow Bounty'}
+                            {isSubmitting ? 'Creating Bounty...' : `Create & Escrow ${currency} Bounty`}
                         </button>
                         <button
                             type="button"

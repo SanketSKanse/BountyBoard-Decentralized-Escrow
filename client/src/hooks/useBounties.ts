@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserProvider, JsonRpcProvider, Contract, formatEther } from 'ethers';
+import { BrowserProvider, JsonRpcProvider, Contract, formatUnits } from 'ethers';
 import BountyEscrowArtifact from '../contracts/BountyEscrow.json';
 import { BOUNTY_ESCROW_ADDRESS, getNetworkConfig } from '../contracts/config';
 import { API_BASE_URL } from '../config';
@@ -16,11 +16,14 @@ export type Bounty = {
     description?: string;
     category: string;
     skills: string[];
+    tokenSymbol: string;
+    tokenAddress?: string | null;
     disputeReason?: string;
     deliverableUri: string;
     submittedAt: number;
     deadline: number;
     proposalCount: number;
+    commentCount?: number;
     arbiter: string;
 };
 
@@ -69,11 +72,12 @@ export function useBounties(refreshKey: number) {
                 for (let id = 1; id <= totalCount; id++) {
                     bountyPromises.push(
                         (async () => {
-                            const [b, deliverableUri, submittedAtRaw, deadlineRaw] = await Promise.all([
+                            const [b, deliverableUri, submittedAtRaw, deadlineRaw, onChainToken] = await Promise.all([
                                 contract.bounties(id),
                                 contract.bountyDeliverables(id).catch(() => ''),
                                 contract.bountySubmittedAt(id).catch(() => 0n),
                                 contract.bountyDeadlines(id).catch(() => 0n),
+                                contract.bountyTokens(id).catch(() => '0x0000000000000000000000000000000000000000'),
                             ]);
 
                             const statusNum = Number(b.status ?? (b.completed ? 3 : 0));
@@ -85,26 +89,40 @@ export function useBounties(refreshKey: number) {
                                       .filter(Boolean)
                                 : [];
 
+                            const isToken = Boolean(
+                                onChainToken &&
+                                onChainToken !== '0x0000000000000000000000000000000000000000'
+                            );
+                            const tokenSymbol = meta?.tokenSymbol || (isToken ? 'USDC' : 'ETH');
+                            const tokenAddress = isToken ? onChainToken : (meta?.tokenAddress || null);
+                            const decimals = tokenSymbol === 'USDC' ? 6 : 18;
+
+                            const amountFormatted = formatUnits(b.amount, decimals);
+                            const remainingFormatted =
+                                b.remainingBalance !== undefined
+                                    ? formatUnits(b.remainingBalance, decimals)
+                                    : amountFormatted;
+
                             return {
                                 id,
                                 client: b.client,
                                 freelancer: b.freelancer,
-                                amount: formatEther(b.amount),
-                                remainingBalance:
-                                    b.remainingBalance !== undefined
-                                        ? formatEther(b.remainingBalance)
-                                        : formatEther(b.amount),
+                                amount: amountFormatted,
+                                remainingBalance: remainingFormatted,
                                 status: statusNum,
                                 completed: statusNum === 3 || Boolean(b.completed),
                                 title: meta?.title || `Bounty #${id}`,
                                 description: meta?.description || '',
                                 category: meta?.category || 'General',
                                 skills: skillsArray,
+                                tokenSymbol,
+                                tokenAddress,
                                 disputeReason: meta?.disputeReason || undefined,
                                 deliverableUri: deliverableUri || '',
                                 submittedAt: Number(submittedAtRaw || 0n),
                                 deadline: Number(deadlineRaw || 0n),
                                 proposalCount: meta?.proposals?.length ?? meta?._count?.proposals ?? 0,
+                                commentCount: meta?.comments?.length ?? meta?._count?.comments ?? 0,
                                 arbiter: arbiterAddress,
                             };
                         })()
