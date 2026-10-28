@@ -29,6 +29,7 @@ type Props = {
     signer: JsonRpcSigner | null;
     chainId?: bigint | null;
     onUpdated: () => void;
+    onViewProfile?: (wallet: string) => void;
 };
 
 export function BountyList({
@@ -38,6 +39,7 @@ export function BountyList({
     signer,
     chainId,
     onUpdated,
+    onViewProfile,
 }: Props) {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All Categories');
@@ -253,6 +255,7 @@ export function BountyList({
                             signer={signer}
                             chainId={chainId}
                             onUpdated={onUpdated}
+                            onViewProfile={onViewProfile}
                         />
                     ))}
                 </div>

@@ -3,6 +3,7 @@ import { useWallet } from './hooks/useWallet';
 import { useBounties } from './hooks/useBounties';
 import { CreateBountyForm } from './components/CreateBountyForm';
 import { BountyList } from './components/BountyList';
+import { UserProfileModal } from './components/UserProfileModal';
 import {
     BOUNTY_ESCROW_ADDRESS,
     BASE_SEPOLIA_CHAIN_ID,
@@ -26,6 +27,7 @@ export default function App() {
     } = useWallet();
 
     const [refreshKey, setRefreshKey] = useState(0);
+    const [viewProfileWallet, setViewProfileWallet] = useState<string | null>(null);
     const { bounties, isLoading } = useBounties(refreshKey);
 
     const isBase = chainId === BASE_SEPOLIA_CHAIN_ID;
@@ -105,14 +107,25 @@ export default function App() {
                             {isConnecting ? 'Connecting...' : 'Connect Wallet'}
                         </button>
                     ) : (
-                        <div className="glass flex items-center gap-3 rounded-xl px-3.5 py-1.5">
-                            <span className="font-mono text-xs text-violet">
-                                {address.slice(0, 6)}...{address.slice(-4)}
-                            </span>
+                        <button
+                            type="button"
+                            onClick={() => setViewProfileWallet(address)}
+                            className="glass flex items-center gap-3 rounded-xl px-3.5 py-1.5 hover:border-violet/40 transition group cursor-pointer"
+                            title="View Your Reputation & Badges"
+                        >
+                            <div className="flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                                <span className="font-mono text-xs text-violet group-hover:underline">
+                                    {address.slice(0, 6)}...{address.slice(-4)}
+                                </span>
+                            </div>
                             <span className="text-xs font-semibold text-gold">
                                 {balance} ETH
                             </span>
-                        </div>
+                            <span className="text-[10px] text-[#9B96AE] bg-white/5 px-1.5 py-0.5 rounded border border-white/10 group-hover:text-white">
+                                Profile 👤
+                            </span>
+                        </button>
                     )}
                 </div>
             </header>
@@ -189,8 +202,20 @@ export default function App() {
                     signer={signer}
                     chainId={chainId}
                     onUpdated={() => setRefreshKey((k) => k + 1)}
+                    onViewProfile={setViewProfileWallet}
                 />
             </section>
+
+            {/* User Profile & Reputation Modal */}
+            {viewProfileWallet && (
+                <UserProfileModal
+                    wallet={viewProfileWallet}
+                    currentAccount={address}
+                    chainId={chainId}
+                    onClose={() => setViewProfileWallet(null)}
+                    onProfileUpdated={() => setRefreshKey((k) => k + 1)}
+                />
+            )}
         </main>
     );
 }
