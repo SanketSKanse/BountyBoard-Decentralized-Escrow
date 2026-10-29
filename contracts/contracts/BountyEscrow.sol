@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "./BountyCredentialNFT.sol";
+
 interface IERC20 {
     function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
@@ -70,6 +72,8 @@ contract BountyEscrow {
 
     address public immutable arbiter;
     address public immutable treasury;
+    address public immutable deployer;
+    address public credentialNFT;
     uint256 public constant PROTOCOL_FEE_BPS = 100; // 1% (100 / 10,000)
     uint256 public constant BPS_DENOMINATOR = 10000;
     uint256 public bountyCount;
@@ -147,11 +151,51 @@ contract BountyEscrow {
         uint256 fee
     );
 
+    event CredentialMinted(
+        uint256 indexed bountyId,
+        address indexed recipient,
+        uint256 tokenId
+    );
+
     constructor(address _arbiter, address _treasury) {
         require(_arbiter != address(0), "Invalid arbiter address");
         require(_treasury != address(0), "Invalid treasury address");
         arbiter = _arbiter;
         treasury = _treasury;
+        deployer = msg.sender;
+    }
+
+    function setCredentialNFT(address _credentialNFT) external {
+        require(
+            msg.sender == arbiter || msg.sender == deployer,
+            "Only arbiter or deployer can set credential NFT"
+        );
+        require(_credentialNFT != address(0), "Invalid credential NFT address");
+        credentialNFT = _credentialNFT;
+    }
+
+    function _mintCredentialSafe(
+        uint256 bountyId,
+        address recipient,
+        uint256 amount
+    ) internal {
+        if (
+            credentialNFT != address(0) &&
+            recipient != address(0) &&
+            amount > 0 &&
+            credentialNFT.code.length > 0
+        ) {
+            try IBountyCredentialNFT(credentialNFT).mintCredential(
+                recipient,
+                bountyId,
+                amount,
+                bountyTokens[bountyId]
+            ) returns (uint256 tokenId) {
+                emit CredentialMinted(bountyId, recipient, tokenId);
+            } catch {
+                // Safe fallback: contract execution never fails even if NFT minting fails
+            }
+        }
     }
 
     function _transferFunds(
@@ -378,6 +422,10 @@ contract BountyEscrow {
         bounties[bountyId].remainingBalance = 0;
         bounties[bountyId].status = BountyStatus.Completed;
 
+        if (credentialNFT != address(0)) {
+            _mintCredentialSafe(bountyId, freelancer, bounties[bountyId].amount);
+        }
+
         _transferFunds(bountyId, freelancer, amount, true);
 
         emit PaymentReleased(
@@ -493,6 +541,9 @@ contract BountyEscrow {
 
         if (allCompleted && bounties[bountyId].remainingBalance == 0) {
             bounties[bountyId].status = BountyStatus.Completed;
+            if (credentialNFT != address(0)) {
+                _mintCredentialSafe(bountyId, freelancer, bounties[bountyId].amount);
+            }
         }
 
         _transferFunds(bountyId, freelancer, amount, true);
@@ -646,6 +697,11 @@ contract BountyEscrow {
         uint256 refundAmount = bounty.remainingBalance;
         bounty.remainingBalance = 0;
         bounty.status = BountyStatus.Completed;
+
+        if (credentialNFT != address(0)) {
+            uint256 earnedAmount = bounty.amount - refundAmount;
+            _mintCredentialSafe(bountyId, bounty.freelancer, earnedAmount);
+        }
 
         _transferFunds(bountyId, bounty.client, refundAmount, false);
 
