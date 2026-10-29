@@ -24,18 +24,21 @@ model User {
 }
 
 model BountyMetadata {
-  id            String          @id @default(cuid())
-  bountyId      Int             @unique
-  title         String
-  description   String?
-  category      String          @default("General")
-  skills        String?         // Comma-separated skill tags, e.g. "Solidity,React,Ethers.js"
-  tokenSymbol   String          @default("ETH") // e.g. "ETH" or "USDC"
-  tokenAddress  String?         // address of ERC20 token or null for ETH
-  disputeReason String?
-  createdAt     DateTime        @default(now())
-  proposals     Proposal[]
-  comments      BountyComment[]
+  id                       String          @id @default(cuid())
+  bountyId                 Int             @unique
+  title                    String
+  description              String?
+  category                 String          @default("General")
+  skills                   String?         // Comma-separated skill tags, e.g. "Solidity,React,Ethers.js"
+  tokenSymbol              String          @default("ETH") // e.g. "ETH" or "USDC"
+  tokenAddress             String?         // address of ERC20 token or null for ETH
+  disputeReason            String?
+  isPrivateDeliverable     Boolean         @default(false)
+  encryptedDeliverableData String?
+  encryptedKeyEnvelope     String?
+  createdAt                DateTime        @default(now())
+  proposals                Proposal[]
+  comments                 BountyComment[]
 }
 
 model Proposal {
@@ -46,6 +49,8 @@ model Proposal {
   timelineDays      Int            @default(7)
   portfolioUrl      String?
   status            String         @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  signature         String?        // EIP-712 signature hex
+  isVerified        Boolean        @default(false)     // true if EIP-712 signature matches freelancerAddress
   createdAt         DateTime       @default(now())
   bounty            BountyMetadata @relation(fields: [bountyId], references: [bountyId], onDelete: Cascade)
 
@@ -61,4 +66,17 @@ model BountyComment {
   createdAt DateTime       @default(now())
   bounty    BountyMetadata @relation(fields: [bountyId], references: [bountyId], onDelete: Cascade)
   user      User?          @relation(fields: [author], references: [wallet])
+}
+
+model ActivityEvent {
+  id        String   @id @default(cuid())
+  bountyId  Int
+  eventType String   // "CREATED", "PROPOSAL_SUBMITTED", "ASSIGNED", "WORK_SUBMITTED", "MILESTONE_APPROVED", "COMPLETED", "DISPUTED"
+  actor     String   // wallet address
+  details   String?  // JSON or summary text
+  txHash    String?
+  createdAt DateTime @default(now())
+
+  @@index([bountyId])
+  @@index([eventType])
 }
