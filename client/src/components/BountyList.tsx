@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { BountyCard } from './BountyCard';
 import type { Bounty } from '../hooks/useBounties';
 import type { JsonRpcSigner } from 'ethers';
+import { API_BASE_URL } from '../config';
+import { getEventBadgeInfo, type ActivityEventItem } from './ActivityFeedModal';
 
 const CATEGORIES = [
     'All Categories',
@@ -30,6 +32,7 @@ type Props = {
     chainId?: bigint | null;
     onUpdated: () => void;
     onViewProfile?: (wallet: string) => void;
+    onOpenActivityFeed?: () => void;
 };
 
 export function BountyList({
@@ -40,11 +43,37 @@ export function BountyList({
     chainId,
     onUpdated,
     onViewProfile,
+    onOpenActivityFeed,
 }: Props) {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All Categories');
     const [selectedStatus, setSelectedStatus] = useState<number>(-1);
     const [roleFilter, setRoleFilter] = useState<'ALL' | 'CLIENT' | 'FREELANCER'>('ALL');
+
+    // Live Activity Ticker State
+    const [recentEvents, setRecentEvents] = useState<ActivityEventItem[]>([]);
+    const [isTickerOpen, setIsTickerOpen] = useState(true);
+
+    useEffect(() => {
+        let isMounted = true;
+        async function loadRecentActivity() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/bounties/activity?limit=5`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isMounted) setRecentEvents(data);
+                }
+            } catch {
+                // Ignore ticker fetch errors
+            }
+        }
+        loadRecentActivity();
+        const interval = setInterval(loadRecentActivity, 15000);
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+        };
+    }, []);
 
     const normalizedConnected = connectedAddress?.toLowerCase();
 
@@ -119,6 +148,80 @@ export function BountyList({
 
     return (
         <section className="mt-8 space-y-5">
+            {/* Collapsible Live Activity Stream Banner */}
+            {recentEvents.length > 0 && (
+                <div className="rounded-2xl glass border border-white/10 p-3.5 transition shadow-lg">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className="flex h-2 w-2 relative">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5 uppercase tracking-wider">
+                                <span>⚡ Live Escrow Activity Stream</span>
+                            </span>
+                            <span className="text-[10px] text-[#9B96AE] bg-white/5 px-2 py-0.5 rounded-full border border-white/10 hidden sm:inline-block">
+                                Real-time Audited Stream
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-2.5">
+                            {onOpenActivityFeed && (
+                                <button
+                                    type="button"
+                                    onClick={onOpenActivityFeed}
+                                    className="text-xs text-gold hover:underline transition font-semibold"
+                                >
+                                    Full Feed ↗
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setIsTickerOpen(!isTickerOpen)}
+                                className="text-xs text-[#9B96AE] hover:text-white transition p-1"
+                                title={isTickerOpen ? 'Collapse live ticker' : 'Expand live ticker'}
+                            >
+                                {isTickerOpen ? '▲' : '▼'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {isTickerOpen && (
+                        <div className="mt-2.5 space-y-1.5 pt-2 border-t border-white/10 animate-fade-in">
+                            {recentEvents.slice(0, 3).map((ev) => {
+                                const badge = getEventBadgeInfo(ev.eventType);
+                                return (
+                                    <div
+                                        key={ev.id}
+                                        className="flex items-center justify-between gap-2 text-xs py-1 px-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition"
+                                    >
+                                        <div className="flex items-center gap-2 truncate">
+                                            <span
+                                                className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${badge.badgeClass}`}
+                                            >
+                                                {badge.icon} {badge.label}
+                                            </span>
+                                            <span className="text-white font-medium truncate">
+                                                {ev.bounty?.title || `Bounty #${ev.bountyId}`}
+                                            </span>
+                                            <span className="font-mono text-[#9B96AE] text-[11px] hidden sm:inline">
+                                                by {ev.actor.slice(0, 6)}...{ev.actor.slice(-4)}
+                                            </span>
+                                        </div>
+                                        <span className="text-[10px] text-[#9B96AE] whitespace-nowrap">
+                                            {new Date(ev.createdAt).toLocaleTimeString([], {
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                            })}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Filter and Search Controls Bar */}
             <div className="glass rounded-2xl p-5 border border-white/10 space-y-4">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">

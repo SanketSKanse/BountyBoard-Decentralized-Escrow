@@ -4,6 +4,7 @@ import { useBounties } from './hooks/useBounties';
 import { CreateBountyForm } from './components/CreateBountyForm';
 import { BountyList } from './components/BountyList';
 import { UserProfileModal } from './components/UserProfileModal';
+import { ActivityFeedModal } from './components/ActivityFeedModal';
 import {
     BOUNTY_ESCROW_ADDRESS,
     BASE_SEPOLIA_CHAIN_ID,
@@ -28,6 +29,7 @@ export default function App() {
 
     const [refreshKey, setRefreshKey] = useState(0);
     const [viewProfileWallet, setViewProfileWallet] = useState<string | null>(null);
+    const [showActivityFeed, setShowActivityFeed] = useState(false);
     const { bounties, isLoading } = useBounties(refreshKey);
 
     const isBase = chainId === BASE_SEPOLIA_CHAIN_ID;
@@ -47,6 +49,20 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
+                    {/* Activity Feed Drawer/Modal Button */}
+                    <button
+                        type="button"
+                        onClick={() => setShowActivityFeed(true)}
+                        className="glass flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs text-[#9B96AE] hover:text-white transition group cursor-pointer"
+                        title="View Live Escrow Activity Stream"
+                    >
+                        <span className="flex h-2 w-2 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span className="group-hover:text-gold transition font-medium">🔔 Activity Feed</span>
+                    </button>
+
                     {/* Active Contract Link */}
                     <a
                         href={getExplorerAddressUrl(BOUNTY_ESCROW_ADDRESS, chainId)}
@@ -203,6 +219,7 @@ export default function App() {
                     chainId={chainId}
                     onUpdated={() => setRefreshKey((k) => k + 1)}
                     onViewProfile={setViewProfileWallet}
+                    onOpenActivityFeed={() => setShowActivityFeed(true)}
                 />
             </section>
 
@@ -214,6 +231,17 @@ export default function App() {
                     chainId={chainId}
                     onClose={() => setViewProfileWallet(null)}
                     onProfileUpdated={() => setRefreshKey((k) => k + 1)}
+                />
+            )}
+
+            {/* Live Platform Activity Stream Modal */}
+            {showActivityFeed && (
+                <ActivityFeedModal
+                    onClose={() => setShowActivityFeed(false)}
+                    chainId={chainId}
+                    onSelectBounty={() => {
+                        setShowActivityFeed(false);
+                    }}
                 />
             )}
         </main>
