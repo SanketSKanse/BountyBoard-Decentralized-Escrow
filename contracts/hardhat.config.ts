@@ -10,7 +10,16 @@ const accounts = deployerKey
 
 export default defineConfig({
     plugins: [hardhatEthers, hardhatMocha],
-    solidity: '0.8.24',
+    solidity: {
+        version: '0.8.24',
+        settings: {
+            viaIR: true,
+            optimizer: {
+                enabled: true,
+                runs: 200,
+            },
+        },
+    },
     networks: {
         hardhat: {
             type: 'edr-simulated',

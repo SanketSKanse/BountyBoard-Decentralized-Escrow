@@ -40,36 +40,55 @@ async function main() {
     console.log("Arbiter Address:", arbiterAddress);
     console.log("Treasury Address:", treasuryAddress);
 
-    console.log("Deploying BountyEscrow contract...");
+    console.log("1. Deploying BountyCredentialNFT contract...");
+    const BountyCredentialNFT = await ethers.getContractFactory("BountyCredentialNFT");
+    const credentialNFT = await BountyCredentialNFT.deploy(deployer.address);
+    await credentialNFT.waitForDeployment();
+    const credentialNFTAddress = await credentialNFT.getAddress();
+    console.log("✅ BountyCredentialNFT deployed at:", credentialNFTAddress);
+
+    console.log("2. Deploying BountyEscrow contract...");
     const BountyEscrow = await ethers.getContractFactory("BountyEscrow");
     const bountyEscrow = await BountyEscrow.deploy(arbiterAddress, treasuryAddress);
-
-    console.log("Waiting for deployment transaction to be confirmed on-chain...");
     await bountyEscrow.waitForDeployment();
-
     const address = await bountyEscrow.getAddress();
     const deployTx = bountyEscrow.deploymentTransaction();
     const txHash = deployTx ? deployTx.hash : "N/A";
+    console.log("✅ BountyEscrow deployed at:", address);
+
+    console.log("3. Linking Escrow on BountyCredentialNFT...");
+    const setEscrowTx = await credentialNFT.setEscrowContract(address);
+    await setEscrowTx.wait();
+    console.log("✅ Escrow contract linked on BountyCredentialNFT");
+
+    console.log("4. Linking Credential NFT on BountyEscrow...");
+    const setCredTx = await bountyEscrow.setCredentialNFT(credentialNFTAddress);
+    await setCredTx.wait();
+    console.log("✅ Credential NFT linked on BountyEscrow");
 
     console.log("====================================================");
-    console.log("✅ BountyEscrow deployed successfully!");
-    console.log("Contract Address:", address);
-    console.log("Deployment Tx Hash:", txHash);
+    console.log("🎉 All contracts deployed and configured successfully!");
+    console.log("BountyEscrow Address:       ", address);
+    console.log("Credential NFT Address:     ", credentialNFTAddress);
+    console.log("Deployment Tx Hash:         ", txHash);
 
     if (chainId === 84532n) {
-        console.log("BaseScan Contract: https://sepolia.basescan.org/address/" + address);
+        console.log("BaseScan Escrow:     https://sepolia.basescan.org/address/" + address);
+        console.log("BaseScan Credential: https://sepolia.basescan.org/address/" + credentialNFTAddress);
         if (txHash !== "N/A") {
-            console.log("BaseScan Tx:       https://sepolia.basescan.org/tx/" + txHash);
+            console.log("BaseScan Tx:         https://sepolia.basescan.org/tx/" + txHash);
         }
     } else if (chainId === 11155420n) {
-        console.log("Optimism Contract: https://sepolia-optimism.etherscan.io/address/" + address);
+        console.log("Optimism Escrow:     https://sepolia-optimism.etherscan.io/address/" + address);
+        console.log("Optimism Credential: https://sepolia-optimism.etherscan.io/address/" + credentialNFTAddress);
         if (txHash !== "N/A") {
-            console.log("Optimism Tx:       https://sepolia-optimism.etherscan.io/tx/" + txHash);
+            console.log("Optimism Tx:         https://sepolia-optimism.etherscan.io/tx/" + txHash);
         }
     } else if (chainId === 11155111n) {
-        console.log("Etherscan Contract: https://sepolia.etherscan.io/address/" + address);
+        console.log("Etherscan Escrow:     https://sepolia.etherscan.io/address/" + address);
+        console.log("Etherscan Credential: https://sepolia.etherscan.io/address/" + credentialNFTAddress);
         if (txHash !== "N/A") {
-            console.log("Etherscan Tx:       https://sepolia.etherscan.io/tx/" + txHash);
+            console.log("Etherscan Tx:         https://sepolia.etherscan.io/tx/" + txHash);
         }
     } else {
         console.log(`Deployed to Chain ID ${chainId}`);
@@ -77,34 +96,61 @@ async function main() {
     console.log("====================================================");
 
     // Export contract artifacts and address to frontend
-    exportToFrontend(address, chainId);
+    exportToFrontend(address, credentialNFTAddress, chainId);
 }
 
-function exportToFrontend(address: string, chainId: bigint) {
-    const artifactPath = path.resolve(
+function exportToFrontend(address: string, credentialNFTAddress: string, chainId: bigint) {
+    const escrowArtifactPath = path.resolve(
         __dirname,
         "../artifacts/contracts/BountyEscrow.sol/BountyEscrow.json"
     );
+    const credentialArtifactPath = path.resolve(
+        __dirname,
+        "../artifacts/contracts/BountyCredentialNFT.sol/BountyCredentialNFT.json"
+    );
 
-    if (!fs.existsSync(artifactPath)) {
-        console.warn("⚠️ Warning: Artifact file not found at", artifactPath);
-        return;
-    }
-
-    const artifactContent = fs.readFileSync(artifactPath, "utf-8");
     const clientContractsDir = path.resolve(__dirname, "../../client/src/contracts");
     const serverContractsDir = path.resolve(__dirname, "../../server/src/contracts");
 
-    if (fs.existsSync(clientContractsDir)) {
-        // 1. Export JSON artifact to client
-        fs.writeFileSync(
-            path.join(clientContractsDir, "BountyEscrow.json"),
-            artifactContent,
-            "utf-8"
-        );
-        console.log("📦 Exported ABI artifact to client/src/contracts/BountyEscrow.json");
+    if (fs.existsSync(escrowArtifactPath)) {
+        const escrowArtifactContent = fs.readFileSync(escrowArtifactPath, "utf-8");
+        if (fs.existsSync(clientContractsDir)) {
+            fs.writeFileSync(
+                path.join(clientContractsDir, "BountyEscrow.json"),
+                escrowArtifactContent,
+                "utf-8"
+            );
+        }
+        if (fs.existsSync(serverContractsDir)) {
+            fs.writeFileSync(
+                path.join(serverContractsDir, "BountyEscrow.json"),
+                escrowArtifactContent,
+                "utf-8"
+            );
+        }
+    }
 
-        // 2. Export updated config.ts with new address and chain ID
+    if (fs.existsSync(credentialArtifactPath)) {
+        const credentialArtifactContent = fs.readFileSync(credentialArtifactPath, "utf-8");
+        if (fs.existsSync(clientContractsDir)) {
+            fs.writeFileSync(
+                path.join(clientContractsDir, "BountyCredentialNFT.json"),
+                credentialArtifactContent,
+                "utf-8"
+            );
+        }
+        if (fs.existsSync(serverContractsDir)) {
+            fs.writeFileSync(
+                path.join(serverContractsDir, "BountyCredentialNFT.json"),
+                credentialArtifactContent,
+                "utf-8"
+            );
+        }
+        console.log("📦 Exported ABI artifacts to client and server contract folders");
+    }
+
+    if (fs.existsSync(clientContractsDir)) {
+        // 1. Export updated config.ts with new address and chain ID
         const configPath = path.join(clientContractsDir, "config.ts");
         const configContent = `export type SupportedNetwork = {
     chainId: bigint;
@@ -152,6 +198,10 @@ export const BOUNTY_ESCROW_ADDRESS =
     (import.meta.env.VITE_CONTRACT_ADDRESS as string) ||
     '${address}';
 
+export const BOUNTY_CREDENTIAL_NFT_ADDRESS =
+    (import.meta.env.VITE_CREDENTIAL_NFT_ADDRESS as string) ||
+    '${credentialNFTAddress}';
+
 export function isSupportedChainId(chainId: bigint | number | string | null | undefined): boolean {
     if (!chainId) return false;
     const str = chainId.toString();
@@ -176,11 +226,34 @@ export function getExplorerTxUrl(txHash: string, chainId?: bigint | number | str
     const net = getNetworkConfig(chainId);
     return \`\${net.blockExplorerUrl}/tx/\${txHash}\`;
 }
+
+export const USDC_ADDRESSES: Record<string, string> = {
+    '84532': '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+    '11155420': '0x5fd84259d66Cd46123540766Be93DFE6D43130D7',
+};
+
+export function getUsdcAddress(chainId?: bigint | number | string | null): string {
+    const str = chainId?.toString();
+    if (str && USDC_ADDRESSES[str]) {
+        return USDC_ADDRESSES[str];
+    }
+    const defaultKey = BOUNTY_BOARD_CHAIN_ID.toString();
+    return USDC_ADDRESSES[defaultKey] || USDC_ADDRESSES['84532'];
+}
+
+export const ERC20_ABI = [
+    'function approve(address spender, uint256 amount) returns (bool)',
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function balanceOf(address account) view returns (uint256)',
+    'function decimals() view returns (uint8)',
+    'function symbol() view returns (string)',
+    'function name() view returns (string)',
+];
 `;
         fs.writeFileSync(configPath, configContent, "utf-8");
-        console.log("⚙️  Updated client/src/contracts/config.ts with contract address & chain ID");
+        console.log("⚙️  Updated client/src/contracts/config.ts with contract addresses & chain ID");
 
-        // 3. Export human-readable ABI
+        // 2. Export human-readable Escrow ABI
         const humanReadableAbiPath = path.join(clientContractsDir, "BountyEscrow.ts");
         const humanReadableContent = `export { BOUNTY_ESCROW_ADDRESS } from './config';
 
@@ -210,20 +283,34 @@ export const BOUNTY_ESCROW_ABI = [
     "function submitWork(uint256 bountyId, string deliverableUri)",
     "function setDeadline(uint256 bountyId, uint256 deadline)",
     "function claimExpiredRefund(uint256 bountyId)",
-    "function getMilestoneCount(uint256 bountyId) view returns (uint256)"
+    "function getMilestoneCount(uint256 bountyId) view returns (uint256)",
+    "function credentialNFT() view returns (address)",
+    "function setCredentialNFT(address _credentialNFT)",
+    "event CredentialMinted(uint256 indexed bountyId, address indexed freelancer, uint256 tokenId)"
 ];
 `;
         fs.writeFileSync(humanReadableAbiPath, humanReadableContent, "utf-8");
-        console.log("📝 Updated client/src/contracts/BountyEscrow.ts");
-    }
 
-    if (fs.existsSync(serverContractsDir)) {
-        fs.writeFileSync(
-            path.join(serverContractsDir, "BountyEscrow.json"),
-            artifactContent,
-            "utf-8"
-        );
-        console.log("📦 Exported ABI artifact to server/src/contracts/BountyEscrow.json");
+        // 3. Export human-readable Credential NFT ABI
+        const credentialAbiPath = path.join(clientContractsDir, "BountyCredentialNFT.ts");
+        const credentialAbiContent = `export { BOUNTY_CREDENTIAL_NFT_ADDRESS } from './config';
+
+export const BOUNTY_CREDENTIAL_NFT_ABI = [
+    "function name() view returns (string)",
+    "function symbol() view returns (string)",
+    "function tokenURI(uint256 tokenId) view returns (string)",
+    "function balanceOf(address account) view returns (uint256)",
+    "function ownerOf(uint256 tokenId) view returns (address)",
+    "function bountyToTokenId(uint256 bountyId) view returns (uint256)",
+    "function totalCredentials() view returns (uint256)",
+    "function credentials(uint256 tokenId) view returns (uint256 bountyId, address recipient, uint256 amount, address token, uint256 completedAt)",
+    "function getCredential(uint256 tokenId) view returns (tuple(uint256 bountyId, address recipient, uint256 amount, address token, uint256 completedAt))",
+    "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
+    "event CredentialMinted(uint256 indexed tokenId, uint256 indexed bountyId, address indexed recipient, uint256 amount, address token, uint256 completedAt)"
+];
+`;
+        fs.writeFileSync(credentialAbiPath, credentialAbiContent, "utf-8");
+        console.log("📝 Updated client contract ABIs");
     }
 
     // 4. Update client/.env if present
@@ -238,6 +325,14 @@ export const BOUNTY_ESCROW_ABI = [
         } else {
             envContent += `\nVITE_CONTRACT_ADDRESS=${address}`;
         }
+        if (envContent.includes("VITE_CREDENTIAL_NFT_ADDRESS=")) {
+            envContent = envContent.replace(
+                /VITE_CREDENTIAL_NFT_ADDRESS=.*/g,
+                `VITE_CREDENTIAL_NFT_ADDRESS=${credentialNFTAddress}`
+            );
+        } else {
+            envContent += `\nVITE_CREDENTIAL_NFT_ADDRESS=${credentialNFTAddress}`;
+        }
         if (envContent.includes("VITE_CHAIN_ID=")) {
             envContent = envContent.replace(
                 /VITE_CHAIN_ID=.*/g,
@@ -247,7 +342,7 @@ export const BOUNTY_ESCROW_ABI = [
             envContent += `\nVITE_CHAIN_ID=${chainId.toString()}`;
         }
         fs.writeFileSync(clientEnvPath, envContent, "utf-8");
-        console.log("🌐 Updated client/.env with VITE_CONTRACT_ADDRESS and VITE_CHAIN_ID");
+        console.log("🌐 Updated client/.env with contract addresses and chain ID");
     }
 }
 
