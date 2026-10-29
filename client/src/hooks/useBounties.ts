@@ -20,6 +20,9 @@ export type Bounty = {
     tokenAddress?: string | null;
     disputeReason?: string;
     deliverableUri: string;
+    isPrivateDeliverable?: boolean;
+    encryptedDeliverableData?: string | null;
+    encryptedKeyEnvelope?: string | null;
     submittedAt: number;
     deadline: number;
     proposalCount: number;
@@ -119,6 +122,9 @@ export function useBounties(refreshKey: number) {
                                 tokenAddress,
                                 disputeReason: meta?.disputeReason || undefined,
                                 deliverableUri: deliverableUri || '',
+                                isPrivateDeliverable: Boolean(meta?.isPrivateDeliverable),
+                                encryptedDeliverableData: meta?.encryptedDeliverableData || null,
+                                encryptedKeyEnvelope: meta?.encryptedKeyEnvelope || null,
                                 submittedAt: Number(submittedAtRaw || 0n),
                                 deadline: Number(deadlineRaw || 0n),
                                 proposalCount: meta?.proposals?.length ?? meta?._count?.proposals ?? 0,
