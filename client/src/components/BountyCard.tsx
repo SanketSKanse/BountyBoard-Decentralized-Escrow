@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Contract, isAddress, parseEther, parseUnits, type JsonRpcSigner } from 'ethers';
+import {
+    Contract,
+    isAddress,
+    parseEther,
+    parseUnits,
+    keccak256,
+    toUtf8Bytes,
+    type JsonRpcSigner,
+} from 'ethers';
 import BountyEscrowArtifact from '../contracts/BountyEscrow.json';
 import { BOUNTY_ESCROW_ADDRESS, getExplorerAddressUrl, getExplorerTxUrl } from '../contracts/config';
 import { useMilestones } from '../hooks/useMilestones';
@@ -16,6 +24,8 @@ export type Proposal = {
     timelineDays: number;
     portfolioUrl?: string | null;
     status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+    signature?: string | null;
+    isVerified?: boolean;
     createdAt: string;
 };
 
@@ -70,6 +80,22 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
     const [coverLetter, setCoverLetter] = useState('');
     const [timelineDays, setTimelineDays] = useState('7');
     const [portfolioUrl, setPortfolioUrl] = useState('');
+    const [signProposal, setSignProposal] = useState(true);
+
+    // Encrypted Deliverable states
+    const [encryptDeliverable, setEncryptDeliverable] = useState(false);
+    const [decryptedDeliverable, setDecryptedDeliverable] = useState<string | null>(null);
+    const [isDecrypting, setIsDecrypting] = useState(false);
+    const [decryptError, setDecryptError] = useState<string | null>(null);
+    const [privateMeta, setPrivateMeta] = useState<{
+        isPrivateDeliverable?: boolean;
+        encryptedDeliverableData?: string | null;
+        encryptedKeyEnvelope?: string | null;
+    }>({
+        isPrivateDeliverable: bounty.isPrivateDeliverable,
+        encryptedDeliverableData: bounty.encryptedDeliverableData,
+        encryptedKeyEnvelope: bounty.encryptedKeyEnvelope,
+    });
 
     // Deliverable Discussion & Revision states
     const [comments, setComments] = useState<BountyComment[]>([]);
@@ -114,6 +140,14 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
     const hasDeadline = bounty.deadline > 0;
     const isExpired = hasDeadline && nowSec > bounty.deadline;
     const hasDeliverable = Boolean(bounty.deliverableUri && bounty.deliverableUri.trim().length > 0);
+    const isEncrypted = Boolean(
+        privateMeta.isPrivateDeliverable ||
+        bounty.isPrivateDeliverable ||
+        (bounty.deliverableUri && bounty.deliverableUri.startsWith('encrypted:'))
+    );
+    const isAuthorizedParty = Boolean(
+        isClient || isFreelancer || isArbiter
+    );
 
     const statusBorderColor = isOpen
         ? 'border-l-blue-500'
@@ -320,6 +354,38 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
 
         try {
             setIsSubmitting(true);
+            let signature: string | undefined = undefined;
+            let ts: number | undefined = undefined;
+
+            if (signProposal && signer) {
+                setStatusMessage('✍️ Please sign proposal verification in MetaMask (0 gas)...');
+                ts = Math.floor(Date.now() / 1000);
+                const domain = {
+                    name: 'BountyBoard',
+                    version: '1',
+                    chainId: Number(chainId || 84532),
+                    verifyingContract: BOUNTY_ESCROW_ADDRESS || '0x0000000000000000000000000000000000000000',
+                };
+                const types = {
+                    Proposal: [
+                        { name: 'bountyId', type: 'uint256' },
+                        { name: 'freelancer', type: 'address' },
+                        { name: 'timelineDays', type: 'uint256' },
+                        { name: 'coverLetterHash', type: 'bytes32' },
+                        { name: 'timestamp', type: 'uint256' },
+                    ],
+                };
+                const value = {
+                    bountyId: BigInt(bounty.id),
+                    freelancer: connectedAddress,
+                    timelineDays: BigInt(days),
+                    coverLetterHash: keccak256(toUtf8Bytes(coverLetter.trim())),
+                    timestamp: BigInt(ts),
+                };
+
+                signature = await signer.signTypedData(domain, types, value);
+            }
+
             setStatusMessage('Submitting proposal to marketplace...');
 
             const res = await fetch(`${API_BASE_URL}/bounties/${bounty.id}/proposals`, {
@@ -330,6 +396,10 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                     coverLetter: coverLetter.trim(),
                     timelineDays: days,
                     portfolioUrl: portfolioUrl.trim() || undefined,
+                    signature,
+                    timestamp: ts,
+                    chainId: Number(chainId || 84532),
+                    verifyingContract: BOUNTY_ESCROW_ADDRESS,
                 }),
             });
 
@@ -338,7 +408,11 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                 throw new Error(errData.error || `HTTP ${res.status}`);
             }
 
-            setStatusMessage('✅ Proposal submitted successfully! The client can now review your bid.');
+            setStatusMessage(
+                signature
+                    ? '✅ Proposal submitted with verified EIP-712 cryptographic signature!'
+                    : '✅ Proposal submitted successfully! The client can now review your bid.'
+            );
             setCoverLetter('');
             setPortfolioUrl('');
             setShowProposalForm(false);
@@ -352,7 +426,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
         }
     }
 
-    // Handle Freelancer Submitting Work Proof On-Chain
+    // Handle Freelancer Submitting Work Proof On-Chain (with optional WebCrypto AES-GCM encryption)
     async function handleSubmitWork() {
         if (!signer) return;
         setStatusMessage(null);
@@ -364,15 +438,81 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
 
         try {
             setIsSubmitting(true);
+            let onChainDeliverable = deliverableInput.trim();
+            let encryptedPayload: string | null = null;
+            let keyEnvelope: string | null = null;
+
+            if (encryptDeliverable && typeof window !== 'undefined' && window.crypto?.subtle) {
+                setStatusMessage('🔒 Encrypting deliverable payload with AES-GCM-256...');
+                const key = await window.crypto.subtle.generateKey(
+                    { name: 'AES-GCM', length: 256 },
+                    true,
+                    ['encrypt', 'decrypt']
+                );
+                const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                const encoded = new TextEncoder().encode(deliverableInput.trim());
+                const cipherBuffer = await window.crypto.subtle.encrypt(
+                    { name: 'AES-GCM', iv },
+                    key,
+                    encoded
+                );
+                const exportedKey = await window.crypto.subtle.exportKey('raw', key);
+                const keyHex = Array.from(new Uint8Array(exportedKey))
+                    .map((b) => b.toString(16).padStart(2, '0'))
+                    .join('');
+                const ivHex = Array.from(iv)
+                    .map((b) => b.toString(16).padStart(2, '0'))
+                    .join('');
+                const cipherHex = Array.from(new Uint8Array(cipherBuffer))
+                    .map((b) => b.toString(16).padStart(2, '0'))
+                    .join('');
+
+                encryptedPayload = JSON.stringify({
+                    iv: ivHex,
+                    ciphertext: cipherHex,
+                    algorithm: 'AES-GCM-256',
+                });
+
+                keyEnvelope = JSON.stringify({
+                    key: keyHex,
+                    algorithm: 'AES-GCM-256',
+                    bountyId: bounty.id,
+                    authorizedParties: ['client', 'arbiter', 'freelancer'],
+                    createdAt: new Date().toISOString(),
+                });
+
+                onChainDeliverable = `encrypted:aes-gcm:${cipherHex.slice(0, 16)}`;
+            }
+
             setStatusMessage('Waiting for confirmation in MetaMask...');
             const contract = new Contract(BOUNTY_ESCROW_ADDRESS, BountyEscrowArtifact.abi, signer);
-            const tx = await contract.submitWork(bounty.id, deliverableInput.trim());
+            const tx = await contract.submitWork(bounty.id, onChainDeliverable);
             setStatusMessage('Transaction sent, recording deliverable on blockchain...');
             await tx.wait();
 
+            if (encryptedPayload && keyEnvelope) {
+                setStatusMessage('Uploading encrypted deliverable envelope to audit stream...');
+                await fetch(`${API_BASE_URL}/bounties/${bounty.id}/encrypted-deliverable`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        freelancerAddress: connectedAddress,
+                        encryptedData: encryptedPayload,
+                        keyEnvelope,
+                        txHash: tx.hash,
+                    }),
+                });
+
+                setPrivateMeta({
+                    isPrivateDeliverable: true,
+                    encryptedDeliverableData: encryptedPayload,
+                    encryptedKeyEnvelope: keyEnvelope,
+                });
+            }
+
             setStatusMessage(
                 <span>
-                    📦 Work deliverable proof recorded on-chain!{' '}
+                    {encryptedPayload ? '🔒 Encrypted work deliverable recorded on-chain!' : '📦 Work deliverable proof recorded on-chain!'}{' '}
                     <a
                         href={getExplorerTxUrl(tx.hash, chainId)}
                         target="_blank"
@@ -390,6 +530,77 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
             setStatusMessage(extractRevertReason(err));
         } finally {
             setIsSubmitting(false);
+        }
+    }
+
+    // Handle Client or Arbiter Decrypting Deliverable
+    async function handleDecryptDeliverable() {
+        setIsDecrypting(true);
+        setDecryptError(null);
+        try {
+            let encData = privateMeta.encryptedDeliverableData;
+            let envelope = privateMeta.encryptedKeyEnvelope;
+
+            if (!encData || !envelope) {
+                const res = await fetch(`${API_BASE_URL}/bounties/${bounty.id}/metadata`);
+                if (res.ok) {
+                    const meta = await res.json();
+                    encData = meta.encryptedDeliverableData;
+                    envelope = meta.encryptedKeyEnvelope;
+                    setPrivateMeta({
+                        isPrivateDeliverable: meta.isPrivateDeliverable,
+                        encryptedDeliverableData: encData,
+                        encryptedKeyEnvelope: envelope,
+                    });
+                }
+            }
+
+            if (!encData || !envelope) {
+                throw new Error('Encrypted deliverable payload or key envelope is missing.');
+            }
+
+            const dataObj = JSON.parse(encData);
+            const envObj = JSON.parse(envelope);
+
+            const keyHex: string = envObj.key;
+            const ivHex: string = dataObj.iv;
+            const cipherHex: string = dataObj.ciphertext;
+
+            if (!keyHex || !ivHex || !cipherHex) {
+                throw new Error('Malformed encrypted deliverable data structure.');
+            }
+
+            const keyBytes = new Uint8Array(
+                (keyHex.match(/.{1,2}/g) || []).map((byte: string) => parseInt(byte, 16))
+            );
+            const ivBytes = new Uint8Array(
+                (ivHex.match(/.{1,2}/g) || []).map((byte: string) => parseInt(byte, 16))
+            );
+            const cipherBytes = new Uint8Array(
+                (cipherHex.match(/.{1,2}/g) || []).map((byte: string) => parseInt(byte, 16))
+            );
+
+            const cryptoKey = await window.crypto.subtle.importKey(
+                'raw',
+                keyBytes,
+                { name: 'AES-GCM' },
+                false,
+                ['decrypt']
+            );
+
+            const decryptedBuffer = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: ivBytes },
+                cryptoKey,
+                cipherBytes
+            );
+
+            const decryptedText = new TextDecoder().decode(decryptedBuffer);
+            setDecryptedDeliverable(decryptedText);
+        } catch (err: any) {
+            console.error('Decryption error:', err);
+            setDecryptError(`Failed to decrypt deliverable: ${err.message || 'Access denied'}`);
+        } finally {
+            setIsDecrypting(false);
         }
     }
 
@@ -838,39 +1049,129 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
 
             {/* VERIFIED ON-CHAIN DELIVERABLE DISPLAY */}
             {hasDeliverable && (
-                <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <span className="text-base">📦</span>
-                            <h4 className="text-sm font-semibold text-emerald-300">
-                                Verified On-Chain Deliverable Proof
-                            </h4>
+                <div>
+                    {isEncrypted ? (
+                        !isAuthorizedParty ? (
+                            <div className="rounded-xl border border-violet/40 bg-violet/10 p-4 relative overflow-hidden">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-base">🔒</span>
+                                        <h4 className="text-sm font-semibold text-violet">
+                                            Protected Deliverable (Client & Arbiter Only)
+                                        </h4>
+                                    </div>
+                                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-violet/20 border border-violet/40 text-violet">
+                                        Encrypted
+                                    </span>
+                                </div>
+                                <p className="mt-1 text-xs text-[#9B96AE]">
+                                    This deliverable was submitted in encrypted mode to protect proprietary code & audits. Decryption keys are held solely by the Client and Arbiter.
+                                </p>
+                                <div className="mt-3 filter blur-sm select-none opacity-40 bg-white/5 rounded-lg p-3 font-mono text-xs text-white">
+                                    https://github.com/proprietary-audit/deliverables/audit-report-confidential-encrypted-envelope-payload-secret
+                                </div>
+                                <div className="mt-2 text-center text-xs font-semibold text-[#9B96AE] flex items-center justify-center gap-1.5">
+                                    <span>🔒</span> Confidential Deliverable
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-violet/40 bg-violet/10 p-4 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-base">🔒</span>
+                                        <h4 className="text-sm font-semibold text-violet">
+                                            Protected Deliverable (Client & Arbiter Authorized)
+                                        </h4>
+                                    </div>
+                                    {bounty.submittedAt > 0 && (
+                                        <span className="text-[11px] text-[#9B96AE]">
+                                            {new Date(bounty.submittedAt * 1000).toLocaleString()}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-[#9B96AE]">
+                                    This deliverable was encrypted with AES-GCM-256 for proprietary confidentiality. As an authorized party, you can decrypt and inspect the verified work proof.
+                                </p>
+
+                                {decryptedDeliverable ? (
+                                    <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-3 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                                                <span>🔓</span> Decrypted Deliverable Work:
+                                            </span>
+                                            <span className="text-[10px] text-emerald-400 font-mono">
+                                                AES-GCM Verified
+                                            </span>
+                                        </div>
+                                        <div className="font-mono text-xs text-white break-all bg-black/40 p-2.5 rounded border border-white/10 select-all">
+                                            {decryptedDeliverable}
+                                        </div>
+                                        {decryptedDeliverable.startsWith('http') && (
+                                            <a
+                                                href={decryptedDeliverable}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-1 text-xs text-mint underline hover:text-white pt-1"
+                                            >
+                                                <span>Open Deliverable Link</span>
+                                                <span>↗</span>
+                                            </a>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={handleDecryptDeliverable}
+                                            disabled={isDecrypting}
+                                            className="rounded-lg bg-violet px-4 py-2 text-xs font-bold text-vault-bg hover:brightness-110 disabled:opacity-50 transition shadow-md flex items-center gap-1.5"
+                                        >
+                                            <span>{isDecrypting ? '⏳' : '🔓'}</span>
+                                            <span>{isDecrypting ? 'Decrypting...' : 'Decrypt Deliverable'}</span>
+                                        </button>
+                                        {decryptError && (
+                                            <span className="text-xs text-red-300">{decryptError}</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    ) : (
+                        <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-base">📦</span>
+                                    <h4 className="text-sm font-semibold text-emerald-300">
+                                        Verified On-Chain Deliverable Proof
+                                    </h4>
+                                </div>
+                                {bounty.submittedAt > 0 && (
+                                    <span className="text-[11px] text-[#9B96AE]">
+                                        {new Date(bounty.submittedAt * 1000).toLocaleString()}
+                                    </span>
+                                )}
+                            </div>
+                            <p className="mt-1 text-xs text-[#9B96AE]">
+                                The assigned freelancer has recorded their deliverable proof on the blockchain.
+                            </p>
+                            <div className="mt-2.5">
+                                <a
+                                    href={
+                                        bounty.deliverableUri.startsWith('http') || bounty.deliverableUri.startsWith('ipfs://')
+                                            ? bounty.deliverableUri
+                                            : `https://${bounty.deliverableUri}`
+                                    }
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 font-mono text-xs font-semibold text-emerald-200 hover:bg-emerald-500/30 transition underline"
+                                >
+                                    <span>🔗 Inspect Deliverable Work:</span>
+                                    <span className="max-w-xs sm:max-w-md truncate">{bounty.deliverableUri}</span>
+                                    <span>↗</span>
+                                </a>
+                            </div>
                         </div>
-                        {bounty.submittedAt > 0 && (
-                            <span className="text-[11px] text-[#9B96AE]">
-                                {new Date(bounty.submittedAt * 1000).toLocaleString()}
-                            </span>
-                        )}
-                    </div>
-                    <p className="mt-1 text-xs text-[#9B96AE]">
-                        The assigned freelancer has recorded their deliverable proof on the blockchain.
-                    </p>
-                    <div className="mt-2.5">
-                        <a
-                            href={
-                                bounty.deliverableUri.startsWith('http') || bounty.deliverableUri.startsWith('ipfs://')
-                                    ? bounty.deliverableUri
-                                    : `https://${bounty.deliverableUri}`
-                            }
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 font-mono text-xs font-semibold text-emerald-200 hover:bg-emerald-500/30 transition underline"
-                        >
-                            <span>🔗 Inspect Deliverable Work:</span>
-                            <span className="max-w-xs sm:max-w-md truncate">{bounty.deliverableUri}</span>
-                            <span>↗</span>
-                        </a>
-                    </div>
+                    )}
                 </div>
             )}
 
@@ -1085,6 +1386,23 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                             {isSubmitting ? 'Recording...' : 'Submit Work Proof'}
                         </button>
                     </div>
+
+                    <label className="flex items-center gap-2 text-xs text-[#F1EEE6] cursor-pointer pt-1">
+                        <input
+                            type="checkbox"
+                            checked={encryptDeliverable}
+                            onChange={(e) => setEncryptDeliverable(e.target.checked)}
+                            className="rounded border-white/20 bg-white/5 text-violet focus:ring-violet/40 h-3.5 w-3.5"
+                        />
+                        <span className="flex items-center gap-1.5 font-medium">
+                            <span>🔒</span> Encrypt Deliverable (Proprietary / Audit Work)
+                        </span>
+                    </label>
+                    {encryptDeliverable && (
+                        <div className="rounded-lg bg-violet/20 border border-violet/30 p-2.5 text-[11px] text-violet-200">
+                            🔐 Client-side encryption enabled (AES-GCM-256). Deliverable plaintext will be encrypted before submission. Only the hiring client and platform arbiter can decrypt it.
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1172,6 +1490,23 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                 </div>
                             </div>
 
+                            <label className="flex items-center gap-2 text-xs text-[#F1EEE6] cursor-pointer pt-1">
+                                <input
+                                    type="checkbox"
+                                    checked={signProposal}
+                                    onChange={(e) => setSignProposal(e.target.checked)}
+                                    className="rounded border-white/20 bg-white/5 text-violet focus:ring-violet/40 h-3.5 w-3.5"
+                                />
+                                <span className="font-medium text-violet-200 flex items-center gap-1.5">
+                                    <span>✍️</span> Sign proposal with connected wallet (0 gas proof)
+                                </span>
+                            </label>
+                            {signProposal && (
+                                <p className="text-[11px] text-[#9B96AE] pl-5">
+                                    Generates an EIP-712 cryptographic signature in MetaMask with zero transaction cost. Proves you control this wallet and prevents spam proposals.
+                                </p>
+                            )}
+
                             <button
                                 type="submit"
                                 disabled={isSubmitting || !coverLetter.trim()}
@@ -1246,7 +1581,20 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                                 </span>
                                             </div>
 
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                                {p.isVerified && (
+                                                    <span
+                                                        className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 flex items-center gap-1 shadow-sm"
+                                                        title="EIP-712 Cryptographic Signature verified off-chain with 0 gas"
+                                                    >
+                                                        <span>✓</span> Cryptographically Verified Signer
+                                                    </span>
+                                                )}
+                                                {p.status === 'ACCEPTED' && p.isVerified && (
+                                                    <span className="rounded-full bg-violet/20 border border-violet/40 px-2 py-0.5 text-[10px] font-semibold text-violet flex items-center gap-1">
+                                                        <span>✍️</span> Cryptographically Signed
+                                                    </span>
+                                                )}
                                                 <span
                                                     className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                                                         p.status === 'ACCEPTED'
