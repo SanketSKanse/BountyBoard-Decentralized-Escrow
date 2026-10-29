@@ -26,5 +26,8 @@ export const BOUNTY_ESCROW_ABI = [
     "function submitWork(uint256 bountyId, string deliverableUri)",
     "function setDeadline(uint256 bountyId, uint256 deadline)",
     "function claimExpiredRefund(uint256 bountyId)",
-    "function getMilestoneCount(uint256 bountyId) view returns (uint256)"
+    "function getMilestoneCount(uint256 bountyId) view returns (uint256)",
+    "function credentialNFT() view returns (address)",
+    "function setCredentialNFT(address _credentialNFT)",
+    "event CredentialMinted(uint256 indexed bountyId, address indexed freelancer, uint256 tokenId)"
 ];
