@@ -1491,4 +1491,361 @@ describe("BountyEscrow", function () {
             }
         });
     });
+
+    describe("Soulbound Credential Minting", function () {
+        async function deployCredentialFixture() {
+            const fixture = await deployFixture();
+            const BountyCredentialNFT = await fixture.ethers.getContractFactory("BountyCredentialNFT");
+            const credentialNFT = (await BountyCredentialNFT.deploy(fixture.client.address)) as any;
+            await credentialNFT.waitForDeployment();
+            const credentialNFTAddress = await credentialNFT.getAddress();
+            const bountyEscrow = fixture.bountyEscrow as any;
+
+            // Link escrow and credential contracts
+            await (await credentialNFT.setEscrowContract(await bountyEscrow.getAddress())).wait();
+            await (await bountyEscrow.connect(fixture.client).setCredentialNFT(credentialNFTAddress)).wait();
+
+            return { ...fixture, bountyEscrow, credentialNFT, credentialNFTAddress, BountyCredentialNFT };
+        }
+
+        async function deployTokenCredentialFixture() {
+            const fixture = await deployCredentialFixture();
+            const MockERC20 = await fixture.ethers.getContractFactory("MockERC20");
+            const mockToken = (await MockERC20.deploy("USD Coin", "USDC", 6)) as any;
+            await mockToken.waitForDeployment();
+            return { ...fixture, mockToken };
+        }
+
+        it("should deploy and link BountyCredentialNFT with BountyEscrow", async function () {
+            const { bountyEscrow, credentialNFT, credentialNFTAddress } = await deployCredentialFixture();
+            const escrowAddress = await bountyEscrow.getAddress();
+
+            expect(await bountyEscrow.credentialNFT()).to.equal(credentialNFTAddress);
+            expect(await credentialNFT.name()).to.equal("BountyBoard Completion Credential");
+            expect(await credentialNFT.symbol()).to.equal("BBCRED");
+            expect(await credentialNFT.escrowContract()).to.equal(escrowAddress);
+            expect(await credentialNFT.totalCredentials()).to.equal(0n);
+
+            // ERC-165 interface checks
+            expect(await credentialNFT.supportsInterface("0x80ac58cd")).to.be.true; // ERC-721
+            expect(await credentialNFT.supportsInterface("0x5b5e139f")).to.be.true; // ERC-721 Metadata
+            expect(await credentialNFT.supportsInterface("0x01ffc9a7")).to.be.true; // ERC-165
+            expect(await credentialNFT.supportsInterface("0x12345678")).to.be.false;
+        });
+
+        it("should mint a Soulbound Credential NFT to the freelancer when payment is released", async function () {
+            const { ethers, bountyEscrow, credentialNFT, client, freelancer } = await deployCredentialFixture();
+            const bountyAmount = ethers.parseEther("1.5");
+
+            await (await bountyEscrow.connect(client).createBounty({ value: bountyAmount })).wait();
+            await (await bountyEscrow.connect(client).assignFreelancer(1, freelancer.address)).wait();
+
+            const tx = await bountyEscrow.connect(client).releasePayment(1);
+            const receipt = await tx.wait();
+
+            // Verify CredentialMinted event on BountyEscrow
+            const credentialEvent = findParsedEvent(receipt, bountyEscrow, "CredentialMinted");
+            expect(credentialEvent).to.not.be.null;
+            expect(credentialEvent?.args[0]).to.equal(1n); // bountyId
+            expect(credentialEvent?.args[1]).to.equal(freelancer.address); // recipient
+            expect(credentialEvent?.args[2]).to.equal(1n); // tokenId
+
+            // Verify NFT state
+            expect(await credentialNFT.balanceOf(freelancer.address)).to.equal(1n);
+            expect(await credentialNFT.ownerOf(1)).to.equal(freelancer.address);
+            expect(await credentialNFT.bountyToTokenId(1)).to.equal(1n);
+            expect(await credentialNFT.totalCredentials()).to.equal(1n);
+
+            const cred = await credentialNFT.credentials(1);
+            expect(cred.bountyId).to.equal(1n);
+            expect(cred.recipient).to.equal(freelancer.address);
+            expect(cred.amount).to.equal(bountyAmount);
+            expect(cred.token).to.equal(ethers.ZeroAddress);
+            expect(cred.completedAt > 0n).to.be.true;
+        });
+
+        it("should mint a Soulbound Credential NFT when the last milestone is approved", async function () {
+            const { ethers, bountyEscrow, credentialNFT, client, freelancer } = await deployCredentialFixture();
+            const totalAmount = ethers.parseEther("1.0");
+            const m1Amount = ethers.parseEther("0.4");
+            const m2Amount = ethers.parseEther("0.6");
+
+            await (await bountyEscrow.connect(client).createBounty({ value: totalAmount })).wait();
+            await (await bountyEscrow.connect(client).assignFreelancer(1, freelancer.address)).wait();
+            await (await bountyEscrow.connect(client).createMilestone(1, "Milestone 1", m1Amount)).wait();
+            await (await bountyEscrow.connect(client).createMilestone(1, "Milestone 2", m2Amount)).wait();
+
+            // Approve milestone 1: should NOT mint yet
+            await (await bountyEscrow.connect(client).approveMilestone(1, 0)).wait();
+            expect(await credentialNFT.balanceOf(freelancer.address)).to.equal(0n);
+
+            // Approve milestone 2 (last milestone): all milestones complete & remaining balance is 0 -> mints!
+            const tx2 = await bountyEscrow.connect(client).approveMilestone(1, 1);
+            const receipt2 = await tx2.wait();
+
+            const credentialEvent = findParsedEvent(receipt2, bountyEscrow, "CredentialMinted");
+            expect(credentialEvent).to.not.be.null;
+            expect(credentialEvent?.args[0]).to.equal(1n);
+            expect(credentialEvent?.args[1]).to.equal(freelancer.address);
+            expect(credentialEvent?.args[2]).to.equal(1n);
+
+            expect(await credentialNFT.balanceOf(freelancer.address)).to.equal(1n);
+            expect(await credentialNFT.ownerOf(1)).to.equal(freelancer.address);
+            const cred = await credentialNFT.credentials(1);
+            expect(cred.amount).to.equal(totalAmount);
+        });
+
+        it("should prevent transferring the credential NFT to another address (Soulbound enforcement)", async function () {
+            const { ethers, bountyEscrow, credentialNFT, client, freelancer, other } =
+                await deployCredentialFixture();
+            const bountyAmount = ethers.parseEther("1");
+
+            await (await bountyEscrow.connect(client).createBounty({ value: bountyAmount })).wait();
+            await (await bountyEscrow.connect(client).assignFreelancer(1, freelancer.address)).wait();
+            await (await bountyEscrow.connect(client).releasePayment(1)).wait();
+
+            const tokenId = 1;
+            expect(await credentialNFT.ownerOf(tokenId)).to.equal(freelancer.address);
+
+            // 1. transferFrom
+            try {
+                await credentialNFT.connect(freelancer).transferFrom(freelancer.address, other.address, tokenId);
+                expect.fail("transferFrom should have reverted");
+            } catch (err: any) {
+                expect(err.message).to.include("Soulbound: Credentials are non-transferable");
+            }
+
+            // 2. safeTransferFrom (2 params)
+            try {
+                await credentialNFT.connect(freelancer)["safeTransferFrom(address,address,uint256)"](
+                    freelancer.address,
+                    other.address,
+                    tokenId
+                );
+                expect.fail("safeTransferFrom should have reverted");
+            } catch (err: any) {
+                expect(err.message).to.include("Soulbound: Credentials are non-transferable");
+            }
+
+            // 3. safeTransferFrom (3 params with bytes)
+            try {
+                await credentialNFT.connect(freelancer)["safeTransferFrom(address,address,uint256,bytes)"](
+                    freelancer.address,
+                    other.address,
+                    tokenId,
+                    "0x"
+                );
+                expect.fail("safeTransferFrom should have reverted");
+            } catch (err: any) {
+                expect(err.message).to.include("Soulbound: Credentials are non-transferable");
+            }
+
+            // 4. approve
+            try {
+                await credentialNFT.connect(freelancer).approve(other.address, tokenId);
+                expect.fail("approve should have reverted");
+            } catch (err: any) {
+                expect(err.message).to.include("Soulbound: Credentials are non-transferable");
+            }
+
+            // 5. setApprovalForAll
+            try {
+                await credentialNFT.connect(freelancer).setApprovalForAll(other.address, true);
+                expect.fail("setApprovalForAll should have reverted");
+            } catch (err: any) {
+                expect(err.message).to.include("Soulbound: Credentials are non-transferable");
+            }
+
+            // 6. getApproved and isApprovedForAll views
+            expect(await credentialNFT.getApproved(tokenId)).to.equal(ethers.ZeroAddress);
+            expect(await credentialNFT.isApprovedForAll(freelancer.address, other.address)).to.be.false;
+        });
+
+        it("should generate valid on-chain tokenURI with base64 JSON and SVG", async function () {
+            const { ethers, bountyEscrow, credentialNFT, client, freelancer } = await deployCredentialFixture();
+            const bountyAmount = ethers.parseEther("2.5");
+
+            await (await bountyEscrow.connect(client).createBounty({ value: bountyAmount })).wait();
+            await (await bountyEscrow.connect(client).assignFreelancer(1, freelancer.address)).wait();
+            await (await bountyEscrow.connect(client).releasePayment(1)).wait();
+
+            const uri = await credentialNFT.tokenURI(1);
+            expect(uri.startsWith("data:application/json;base64,")).to.be.true;
+
+            // Decode JSON
+            const jsonBase64 = uri.replace("data:application/json;base64,", "");
+            const jsonStr = Buffer.from(jsonBase64, "base64").toString("utf-8");
+            const metadata = JSON.parse(jsonStr);
+
+            expect(metadata.name).to.equal("Bounty Completion Credential #1");
+            expect(metadata.description).to.equal(
+                "Verified on-chain proof of bounty completion on BountyBoard"
+            );
+            expect(metadata.image.startsWith("data:image/svg+xml;base64,")).to.be.true;
+
+            // Decode SVG
+            const svgBase64 = metadata.image.replace("data:image/svg+xml;base64,", "");
+            const svgStr = Buffer.from(svgBase64, "base64").toString("utf-8");
+
+            expect(svgStr).to.include("<svg");
+            expect(svgStr).to.include("BOUNTYBOARD SOULBOUND");
+            expect(svgStr).to.include("Bounty #1");
+            expect(svgStr).to.include("2.5000 ETH");
+            expect(svgStr).to.include("NON-TRANSFERABLE");
+
+            // Check attributes
+            const attrs = metadata.attributes;
+            const bountyIdAttr = attrs.find((a: any) => a.trait_type === "Bounty ID");
+            expect(bountyIdAttr.value).to.equal(1);
+
+            const amountAttr = attrs.find((a: any) => a.trait_type === "Amount");
+            expect(amountAttr.value).to.equal("2.5000 ETH");
+
+            const symbolAttr = attrs.find((a: any) => a.trait_type === "Token Symbol");
+            expect(symbolAttr.value).to.equal("ETH");
+
+            const soulboundAttr = attrs.find((a: any) => a.trait_type === "Soulbound");
+            expect(soulboundAttr.value).to.equal("True");
+
+            const recipientAttr = attrs.find((a: any) => a.trait_type === "Recipient");
+            expect(recipientAttr.value.toLowerCase()).to.equal(freelancer.address.toLowerCase());
+        });
+
+        it("should reject minting credentials from unauthorized callers", async function () {
+            const { ethers, credentialNFT, attacker, bountyEscrow, other } = await deployCredentialFixture();
+
+            // 1. Direct minting on BountyCredentialNFT from non-escrow caller
+            try {
+                await credentialNFT.connect(attacker)["mintCredential(address,uint256,uint256,address)"](
+                    attacker.address,
+                    99,
+                    1000n,
+                    ethers.ZeroAddress
+                );
+                expect.fail("mintCredential should have reverted");
+            } catch (err: any) {
+                expect(err.message).to.include("Only escrow contract can mint");
+            }
+
+            try {
+                await credentialNFT.connect(attacker)["mintCredential(uint256,address,uint256,address)"](
+                    99,
+                    attacker.address,
+                    1000n,
+                    ethers.ZeroAddress
+                );
+                expect.fail("mintCredential should have reverted");
+            } catch (err: any) {
+                expect(err.message).to.include("Only escrow contract can mint");
+            }
+
+            // 2. Updating escrow contract on BountyCredentialNFT from non-owner
+            try {
+                await credentialNFT.connect(attacker).setEscrowContract(attacker.address);
+                expect.fail("setEscrowContract should have reverted");
+            } catch (err: any) {
+                expect(err.message).to.include("Only owner can update escrow");
+            }
+
+            // 3. Updating credentialNFT on BountyEscrow from unauthorized caller
+            try {
+                await bountyEscrow.connect(attacker).setCredentialNFT(other.address);
+                expect.fail("setCredentialNFT should have reverted");
+            } catch (err: any) {
+                expect(err.message).to.include("Only arbiter or deployer can set credential NFT");
+            }
+        });
+
+        it("should mint a Soulbound Credential NFT for token (USDC) bounties", async function () {
+            const { ethers, bountyEscrow, credentialNFT, client, freelancer, mockToken } =
+                await deployTokenCredentialFixture();
+            const bountyAmount = ethers.parseUnits("500", 6);
+
+            await (await mockToken.mint(client.address, bountyAmount)).wait();
+            await (await mockToken.connect(client).approve(await bountyEscrow.getAddress(), bountyAmount)).wait();
+            await (await bountyEscrow.connect(client).createTokenBounty(await mockToken.getAddress(), bountyAmount)).wait();
+            await (await bountyEscrow.connect(client).assignFreelancer(1, freelancer.address)).wait();
+            await (await bountyEscrow.connect(client).releasePayment(1)).wait();
+
+            const uri = await credentialNFT.tokenURI(1);
+            expect(uri.startsWith("data:application/json;base64,")).to.be.true;
+
+            const jsonBase64 = uri.replace("data:application/json;base64,", "");
+            const jsonStr = Buffer.from(jsonBase64, "base64").toString("utf-8");
+            const metadata = JSON.parse(jsonStr);
+
+            expect(metadata.name).to.equal("Bounty Completion Credential #1");
+            const svgBase64 = metadata.image.replace("data:image/svg+xml;base64,", "");
+            const svgStr = Buffer.from(svgBase64, "base64").toString("utf-8");
+
+            expect(svgStr).to.include("500 USDC");
+
+            const attrs = metadata.attributes;
+            const symbolAttr = attrs.find((a: any) => a.trait_type === "Token Symbol");
+            expect(symbolAttr.value).to.equal("USDC");
+
+            const amountAttr = attrs.find((a: any) => a.trait_type === "Amount");
+            expect(amountAttr.value).to.equal("500 USDC");
+        });
+
+        it("should allow arbiter or deployer to update credentialNFT, but reject zero address", async function () {
+            const { ethers, bountyEscrow, arbiter, client, other } = await deployCredentialFixture();
+
+            // Zero address check
+            try {
+                await bountyEscrow.connect(arbiter).setCredentialNFT(ethers.ZeroAddress);
+                expect.fail("setCredentialNFT should have reverted");
+            } catch (err: any) {
+                expect(err.message).to.include("Invalid credential NFT address");
+            }
+
+            // Deployer can set
+            await bountyEscrow.connect(client).setCredentialNFT(other.address);
+            expect(await bountyEscrow.credentialNFT()).to.equal(other.address);
+
+            // Arbiter can also set
+            await bountyEscrow.connect(arbiter).setCredentialNFT(client.address);
+            expect(await bountyEscrow.credentialNFT()).to.equal(client.address);
+        });
+
+        it("should not revert payment release if credential minting fails (safe fallback)", async function () {
+            const { ethers, bountyEscrow, client, freelancer, other } = await deployCredentialFixture();
+            const bountyAmount = ethers.parseEther("1");
+
+            // Point credentialNFT to an address that does not implement mintCredential
+            await (await bountyEscrow.connect(client).setCredentialNFT(other.address)).wait();
+
+            await (await bountyEscrow.connect(client).createBounty({ value: bountyAmount })).wait();
+            await (await bountyEscrow.connect(client).assignFreelancer(1, freelancer.address)).wait();
+
+            // Payment release MUST succeed even though external mintCredential call fails
+            const tx = await bountyEscrow.connect(client).releasePayment(1);
+            const receipt = await tx.wait();
+
+            const paymentEvent = findParsedEvent(receipt, bountyEscrow, "PaymentReleased");
+            expect(paymentEvent).to.not.be.null;
+
+            const bounty = await bountyEscrow.bounties(1);
+            expect(bounty.status).to.equal(3n); // Completed
+            expect(bounty.remainingBalance).to.equal(0n);
+        });
+
+        it("should reject tokenURI and ownerOf for invalid or nonexistent token ID", async function () {
+            const { credentialNFT } = await deployCredentialFixture();
+
+            try {
+                await credentialNFT.tokenURI(999);
+                expect.fail("tokenURI should have reverted");
+            } catch (err: any) {
+                expect(err.message).to.include("ERC721: invalid token ID");
+            }
+
+            try {
+                await credentialNFT.ownerOf(999);
+                expect.fail("ownerOf should have reverted");
+            } catch (err: any) {
+                expect(err.message).to.include("ERC721: invalid token ID");
+            }
+        });
+    });
 });
