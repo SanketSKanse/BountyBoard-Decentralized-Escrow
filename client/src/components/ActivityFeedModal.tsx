@@ -39,7 +39,7 @@ export function getEventBadgeInfo(eventType: string): {
         case 'CREATED':
             return {
                 label: '💼 Bounty Created',
-                badgeClass: 'bg-violet/20 text-violet border-violet/40',
+                badgeClass: 'bg-white/10 text-white border-white/20',
                 icon: '💼',
             };
         case 'PROPOSAL_SUBMITTED':
@@ -142,7 +142,7 @@ export function ActivityFeedModal({ onClose, chainId, onSelectBounty }: Props) {
                 {/* Header */}
                 <div className="flex items-start justify-between border-b border-white/10 pb-4">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet/20 border border-violet/30 text-xl">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 border border-white/10 text-xl">
                             🔔
                         </div>
                         <div>
@@ -153,7 +153,7 @@ export function ActivityFeedModal({ onClose, chainId, onSelectBounty }: Props) {
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                                 </span>
                             </h2>
-                            <p className="text-xs text-[#9B96AE] mt-0.5">
+                            <p className="text-xs text-[#8F94A6] mt-0.5">
                                 Real-time audited escrow events, verified credentials & submissions
                             </p>
                         </div>
@@ -164,14 +164,14 @@ export function ActivityFeedModal({ onClose, chainId, onSelectBounty }: Props) {
                             type="button"
                             onClick={fetchActivity}
                             disabled={loading}
-                            className="rounded-lg p-1.5 text-xs text-[#9B96AE] hover:text-white hover:bg-white/10 transition"
+                            className="rounded-lg p-1.5 text-xs text-[#8F94A6] hover:text-white hover:bg-white/10 transition"
                             title="Refresh events"
                         >
                             🔄
                         </button>
                         <button
                             onClick={onClose}
-                            className="rounded-lg p-1.5 text-[#9B96AE] hover:text-white hover:bg-white/10 transition"
+                            className="rounded-lg p-1.5 text-[#8F94A6] hover:text-white hover:bg-white/10 transition"
                             title="Close modal"
                         >
                             ✕
@@ -182,7 +182,7 @@ export function ActivityFeedModal({ onClose, chainId, onSelectBounty }: Props) {
                 {/* Content / Scrollable List */}
                 <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                     {loading && events.length === 0 ? (
-                        <div className="py-16 text-center text-xs text-[#9B96AE] animate-pulse">
+                        <div className="py-16 text-center text-xs text-[#8F94A6] animate-pulse">
                             Loading platform activity events...
                         </div>
                     ) : error ? (
@@ -193,7 +193,7 @@ export function ActivityFeedModal({ onClose, chainId, onSelectBounty }: Props) {
                         <div className="rounded-xl border border-dashed border-white/15 p-8 text-center space-y-2">
                             <span className="text-3xl block">📡</span>
                             <div className="text-sm font-semibold text-white">No Activity Recorded Yet</div>
-                            <p className="text-xs text-[#9B96AE] max-w-sm mx-auto">
+                            <p className="text-xs text-[#8F94A6] max-w-sm mx-auto">
                                 Platform events, proposal submissions, milestone payouts, and credential mintings will stream here in real time.
                             </p>
                         </div>
@@ -212,7 +212,7 @@ export function ActivityFeedModal({ onClose, chainId, onSelectBounty }: Props) {
                             return (
                                 <div
                                     key={event.id}
-                                    className="rounded-xl bg-white/5 border border-white/10 p-3 hover:border-violet/40 transition flex flex-col gap-2 group"
+                                    className="rounded-xl bg-white/5 border border-white/10 p-3 hover:border-white/25 transition flex flex-col gap-2 group"
                                 >
                                     <div className="flex items-center justify-between gap-2">
                                         <div className="flex items-center gap-2 flex-wrap">
@@ -226,26 +226,26 @@ export function ActivityFeedModal({ onClose, chainId, onSelectBounty }: Props) {
                                             <button
                                                 type="button"
                                                 onClick={() => handleBountyClick(event.bountyId)}
-                                                className="text-xs font-semibold text-white hover:text-gold transition truncate max-w-[200px] sm:max-w-xs text-left cursor-pointer"
+                                                className="text-xs font-semibold text-white hover:underline transition truncate max-w-[200px] sm:max-w-xs text-left cursor-pointer"
                                                 title="Jump to this bounty"
                                             >
                                                 {event.bounty?.title || `Bounty #${event.bountyId}`} ↗
                                             </button>
                                         </div>
 
-                                        <span className="text-[11px] text-[#9B96AE] whitespace-nowrap">
+                                        <span className="text-[11px] text-[#8F94A6] whitespace-nowrap">
                                             {formatRelativeTime(event.createdAt)}
                                         </span>
                                     </div>
 
-                                    <div className="flex items-center justify-between text-[11px] text-[#9B96AE]">
+                                    <div className="flex items-center justify-between text-[11px] text-[#8F94A6]">
                                         <div className="flex items-center gap-1.5 font-mono">
                                             <span>Actor:</span>
                                             <a
                                                 href={getExplorerAddressUrl(event.actor, chainId)}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="text-violet hover:underline"
+                                                className="text-white/80 hover:text-white hover:underline"
                                             >
                                                 {event.actor.slice(0, 6)}...{event.actor.slice(-4)}
                                             </a>
@@ -256,7 +256,7 @@ export function ActivityFeedModal({ onClose, chainId, onSelectBounty }: Props) {
                                                 href={getExplorerTxUrl(event.txHash, chainId)}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="text-mint hover:underline font-mono text-[10px]"
+                                                className="text-emerald-300 hover:text-white hover:underline font-mono text-[10px]"
                                             >
                                                 Tx Proof ↗
                                             </a>
@@ -272,15 +272,15 @@ export function ActivityFeedModal({ onClose, chainId, onSelectBounty }: Props) {
                                                 <span className="block truncate">Recipient: {parsedDetails.recipient}</span>
                                             )}
                                             {parsedDetails.tokenId && (
-                                                <span className="block text-gold font-bold">
+                                                <span className="block text-white font-bold">
                                                     Soulbound NFT #{parsedDetails.tokenId}
                                                 </span>
                                             )}
                                             {parsedDetails.isPrivateDeliverable && (
-                                                <span className="block text-violet">🔒 Encrypted Deliverable</span>
+                                                <span className="block text-white/90">🔒 Encrypted Deliverable</span>
                                             )}
                                             {parsedDetails.tokenSymbol && (
-                                                <span className="block text-[#9B96AE]">Currency: {parsedDetails.tokenSymbol}</span>
+                                                <span className="block text-[#8F94A6]">Currency: {parsedDetails.tokenSymbol}</span>
                                             )}
                                         </div>
                                     )}

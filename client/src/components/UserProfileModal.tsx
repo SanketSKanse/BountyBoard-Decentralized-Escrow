@@ -290,18 +290,18 @@ export function UserProfileModal({
                         <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
                             <span>User Reputation & Profile</span>
                             {isOwner && (
-                                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-violet/20 border border-violet/40 text-violet">
+                                <span className="text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white/90">
                                     You
                                 </span>
                             )}
                         </h2>
-                        <p className="text-xs text-[#9B96AE] mt-0.5">
+                        <p className="text-xs text-[#8F94A6] mt-0.5">
                             On-chain performance, verified badges & activity credentials.
                         </p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="rounded-lg p-1.5 text-[#9B96AE] hover:text-white hover:bg-white/10 transition"
+                        className="rounded-lg p-1.5 text-[#8F94A6] hover:text-white hover:bg-white/10 transition"
                         title="Close modal"
                     >
                         ✕
@@ -309,7 +309,7 @@ export function UserProfileModal({
                 </div>
 
                 {loading ? (
-                    <div className="py-12 text-center text-[#9B96AE] animate-pulse">
+                    <div className="py-12 text-center text-[#8F94A6] animate-pulse">
                         Loading reputation metrics & on-chain badges...
                     </div>
                 ) : error ? (
@@ -325,14 +325,14 @@ export function UserProfileModal({
                                     <img
                                         src={profile.avatarUrl}
                                         alt={profile.username || 'Avatar'}
-                                        className="h-16 w-16 rounded-full object-cover border-2 border-violet/50 shadow-md"
+                                        className="h-16 w-16 rounded-full object-cover border-2 border-white/20 shadow-md"
                                         onError={(e) => {
                                             // Fallback if image fails
                                             (e.target as HTMLElement).style.display = 'none';
                                         }}
                                     />
                                 ) : (
-                                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-violet to-gold text-2xl font-bold text-vault-bg shadow-md">
+                                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/10 border border-white/20 text-2xl font-bold text-white shadow-md">
                                         {(profile.username || wallet.slice(2, 4)).toUpperCase()}
                                     </div>
                                 )}
@@ -347,7 +347,7 @@ export function UserProfileModal({
                                         <button
                                             type="button"
                                             onClick={() => setIsEditing(true)}
-                                            className="text-xs text-gold hover:underline transition"
+                                            className="text-xs text-white/80 hover:text-white hover:underline transition"
                                         >
                                             Edit Profile
                                         </button>
@@ -355,13 +355,13 @@ export function UserProfileModal({
                                 </div>
 
                                 <div className="mt-1 flex items-center gap-2">
-                                    <span className="font-mono text-xs text-[#9B96AE] truncate">
+                                    <span className="font-mono text-xs text-[#8F94A6] truncate">
                                         {wallet.slice(0, 8)}...{wallet.slice(-6)}
                                     </span>
                                     <button
                                         type="button"
                                         onClick={handleCopyAddress}
-                                        className="text-[11px] text-[#9B96AE] hover:text-white transition"
+                                        className="text-[11px] text-[#8F94A6] hover:text-white transition"
                                         title="Copy wallet address"
                                     >
                                         {copied ? '✓' : '📋'}
@@ -370,7 +370,7 @@ export function UserProfileModal({
                                         href={getExplorerAddressUrl(wallet, chainId)}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="text-[11px] text-violet hover:underline flex items-center gap-0.5"
+                                        className="text-[11px] text-[#8F94A6] hover:text-white hover:underline flex items-center gap-0.5"
                                         title="View on block explorer"
                                     >
                                         Explorer ↗
@@ -398,8 +398,8 @@ export function UserProfileModal({
                                 onClick={() => setActiveTab('profile')}
                                 className={`text-xs sm:text-sm font-semibold pb-2 transition flex items-center gap-2 border-b-2 ${
                                     activeTab === 'profile'
-                                        ? 'text-gold border-gold'
-                                        : 'text-[#9B96AE] border-transparent hover:text-white'
+                                        ? 'text-white border-white'
+                                        : 'text-[#8F94A6] border-transparent hover:text-white'
                                 }`}
                             >
                                 <span>👤 Profile & Reputation</span>
@@ -409,13 +409,13 @@ export function UserProfileModal({
                                 onClick={() => setActiveTab('credentials')}
                                 className={`text-xs sm:text-sm font-semibold pb-2 transition flex items-center gap-2 border-b-2 ${
                                     activeTab === 'credentials'
-                                        ? 'text-gold border-gold'
-                                        : 'text-[#9B96AE] border-transparent hover:text-white'
+                                        ? 'text-white border-white'
+                                        : 'text-[#8F94A6] border-transparent hover:text-white'
                                 }`}
                             >
                                 <span>🏆 On-Chain Credentials</span>
                                 {credentials.length > 0 && (
-                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-violet/30 text-violet border border-violet/40">
+                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-medium bg-white/10 text-white border border-white/20">
                                         {credentials.length}
                                     </span>
                                 )}
@@ -429,72 +429,72 @@ export function UserProfileModal({
                                 {isEditing ? (
                                     <form
                                         onSubmit={handleSaveProfile}
-                                        className="space-y-3 bg-white/5 p-4 rounded-xl border border-white/10"
+                                        className="space-y-3 bg-[#0D1120] p-4 rounded-xl border border-white/10"
                                     >
                                         <div className="flex items-center justify-between">
-                                            <span className="text-xs font-bold uppercase tracking-wider text-gold">
+                                            <span className="text-xs font-bold uppercase tracking-wider text-white">
                                                 Edit Your Profile
                                             </span>
                                             <button
                                                 type="button"
                                                 onClick={() => setIsEditing(false)}
-                                                className="text-xs text-[#9B96AE] hover:text-white"
+                                                className="text-xs text-[#8F94A6] hover:text-white"
                                             >
                                                 Cancel
                                             </button>
                                         </div>
 
                                         <div>
-                                            <label className="text-xs text-[#9B96AE] block">Display Name</label>
+                                            <label className="text-xs text-[#8F94A6] block">Display Name</label>
                                             <input
                                                 value={username}
                                                 onChange={(e) => setUsername(e.target.value)}
                                                 placeholder="e.g. SatoshiCraft"
-                                                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet/60 focus:outline-none"
+                                                className="mt-1 w-full rounded-lg border border-white/10 bg-[#111624] px-3 py-1.5 text-sm text-white focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="text-xs text-[#9B96AE] block">Avatar Image URL</label>
+                                            <label className="text-xs text-[#8F94A6] block">Avatar Image URL</label>
                                             <input
                                                 value={avatarUrl}
                                                 onChange={(e) => setAvatarUrl(e.target.value)}
                                                 placeholder="https://... (e.g. GitHub or IPFS image)"
-                                                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet/60 focus:outline-none"
+                                                className="mt-1 w-full rounded-lg border border-white/10 bg-[#111624] px-3 py-1.5 text-sm text-white focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="text-xs text-[#9B96AE] block">Bio / Summary</label>
+                                            <label className="text-xs text-[#8F94A6] block">Bio / Summary</label>
                                             <textarea
                                                 rows={2}
                                                 value={bio}
                                                 onChange={(e) => setBio(e.target.value)}
                                                 placeholder="Experienced Solidity auditor & full-stack Web3 developer..."
-                                                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet/60 focus:outline-none"
+                                                className="mt-1 w-full rounded-lg border border-white/10 bg-[#111624] px-3 py-1.5 text-sm text-white focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                             />
                                         </div>
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             <div>
-                                                <label className="text-xs text-[#9B96AE] block">
+                                                <label className="text-xs text-[#8F94A6] block">
                                                     Skills (comma-separated)
                                                 </label>
                                                 <input
                                                     value={skills}
                                                     onChange={(e) => setSkills(e.target.value)}
                                                     placeholder="Solidity, React, Rust"
-                                                    className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet/60 focus:outline-none"
+                                                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#111624] px-3 py-1.5 text-sm text-white focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                                 />
                                             </div>
 
                                             <div>
-                                                <label className="text-xs text-[#9B96AE] block">GitHub Username</label>
+                                                <label className="text-xs text-[#8F94A6] block">GitHub Username</label>
                                                 <input
                                                     value={githubHandle}
                                                     onChange={(e) => setGithubHandle(e.target.value)}
                                                     placeholder="e.g. octocat"
-                                                    className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet/60 focus:outline-none"
+                                                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#111624] px-3 py-1.5 text-sm text-white focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                                 />
                                             </div>
                                         </div>
@@ -503,14 +503,14 @@ export function UserProfileModal({
                                             <button
                                                 type="button"
                                                 onClick={() => setIsEditing(false)}
-                                                className="rounded-lg px-3 py-1.5 text-xs text-[#9B96AE] hover:text-white transition"
+                                                className="rounded-lg px-3 py-1.5 text-xs text-[#8F94A6] hover:text-white transition"
                                             >
                                                 Cancel
                                             </button>
                                             <button
                                                 type="submit"
                                                 disabled={isSaving}
-                                                className="rounded-lg bg-gold px-4 py-1.5 text-xs font-bold text-vault-bg hover:brightness-110 disabled:opacity-50 transition"
+                                                className="rounded-lg bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90 active:scale-[0.98] disabled:opacity-50 transition shadow-sm"
                                             >
                                                 {isSaving ? 'Saving...' : 'Save Profile'}
                                             </button>
@@ -547,7 +547,7 @@ export function UserProfileModal({
                                             {skillsList.map((skill) => (
                                                 <span
                                                     key={skill}
-                                                    className="rounded-md bg-violet/15 border border-violet/30 px-2 py-0.5 text-[11px] font-medium text-violet"
+                                                    className="rounded-md bg-white/5 border border-white/10 px-2 py-0.5 text-[11px] font-mono text-[#8F94A6]"
                                                 >
                                                     {skill}
                                                 </span>
@@ -559,24 +559,24 @@ export function UserProfileModal({
                                 {/* Key Performance Stats Grid */}
                                 <div className="grid grid-cols-3 gap-3">
                                     <div className="rounded-xl bg-white/5 p-3 text-center border border-white/10">
-                                        <span className="text-xs text-[#9B96AE] block">🌟 Completed</span>
+                                        <span className="text-xs text-[#8F94A6] block">🌟 Completed</span>
                                         <span className="text-lg font-bold text-emerald-400">
                                             {profile.completedAsWorker}
                                         </span>
-                                        <span className="text-[10px] text-[#9B96AE] block mt-0.5">Freelancer</span>
+                                        <span className="text-[10px] text-[#8F94A6] block mt-0.5">Freelancer</span>
                                     </div>
 
                                     <div className="rounded-xl bg-white/5 p-3 text-center border border-white/10">
-                                        <span className="text-xs text-[#9B96AE] block">💼 Funded</span>
-                                        <span className="text-lg font-bold text-blue-400">
+                                        <span className="text-xs text-[#8F94A6] block">💼 Funded</span>
+                                        <span className="text-lg font-bold text-white">
                                             {profile.completedAsClient}
                                         </span>
-                                        <span className="text-[10px] text-[#9B96AE] block mt-0.5">Client</span>
+                                        <span className="text-[10px] text-[#8F94A6] block mt-0.5">Client</span>
                                     </div>
 
                                     <div className="rounded-xl bg-white/5 p-3 text-center border border-white/10">
-                                        <span className="text-xs text-[#9B96AE] block">💰 Volume Earned</span>
-                                        <span className="text-sm font-bold text-gold block truncate">
+                                        <span className="text-xs text-[#8F94A6] block">💰 Volume Earned</span>
+                                        <span className="text-sm font-bold text-white block truncate">
                                             {profile.totalEarnedEth.toFixed(3)} ETH
                                         </span>
                                         {profile.totalEarnedUsd > 0 && (
@@ -590,16 +590,16 @@ export function UserProfileModal({
                                 {/* Verified Badges Section */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <h4 className="text-xs font-bold uppercase tracking-wider text-[#9B96AE]">
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-[#8F94A6]">
                                             Verified Skill & Reputation Badges
                                         </h4>
-                                        <span className="text-[11px] font-semibold text-gold">
+                                        <span className="text-[11px] font-mono font-medium text-white/90">
                                             {profile.badges.length} Unlocked
                                         </span>
                                     </div>
 
                                     {profile.badges.length === 0 ? (
-                                        <div className="rounded-xl border border-dashed border-white/15 p-4 text-center text-xs text-[#9B96AE]">
+                                        <div className="rounded-xl border border-dashed border-white/15 p-4 text-center text-xs text-[#8F94A6]">
                                             No badges unlocked yet. Complete or fund bounties to earn verified on-chain badges!
                                         </div>
                                     ) : (
@@ -607,14 +607,14 @@ export function UserProfileModal({
                                             {profile.badges.map((b) => (
                                                 <div
                                                     key={b.id}
-                                                    className="flex items-start gap-2.5 rounded-xl bg-white/5 p-2.5 border border-white/10 hover:border-gold/30 transition"
+                                                    className="flex items-start gap-2.5 rounded-xl bg-white/5 p-2.5 border border-white/10 hover:border-white/25 transition"
                                                 >
                                                     <span className="text-2xl">{b.icon}</span>
                                                     <div>
                                                         <div className="font-semibold text-xs text-white">
                                                             {b.title}
                                                         </div>
-                                                        <div className="text-[11px] text-[#9B96AE] leading-tight">
+                                                        <div className="text-[11px] text-[#8F94A6] leading-tight">
                                                             {b.description}
                                                         </div>
                                                     </div>
@@ -629,17 +629,17 @@ export function UserProfileModal({
                         {/* TAB 2: 🏆 ON-CHAIN CREDENTIALS (SOULBOUND BADGES) */}
                         {activeTab === 'credentials' && (
                             <div className="space-y-4 animate-fade-in">
-                                <div className="rounded-xl bg-violet/10 p-3.5 border border-violet/20">
-                                    <h4 className="text-xs font-bold uppercase tracking-wider text-gold flex items-center gap-1.5">
+                                <div className="rounded-xl bg-[#0D1120] p-3.5 border border-white/10">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
                                         <span>🏆 Soulbound Achievement Certificates (SBTs)</span>
                                     </h4>
-                                    <p className="text-xs text-[#9B96AE] mt-1 leading-relaxed">
+                                    <p className="text-xs text-[#8F94A6] mt-1 leading-relaxed">
                                         Non-transferable ERC-721 tokens minted directly to your wallet upon successful bounty completion. Each credential encodes dynamic on-chain SVG art, audited completion timestamps, and verified payout amounts.
                                     </p>
                                 </div>
 
                                 {credentialsLoading ? (
-                                    <div className="py-12 text-center text-[#9B96AE] animate-pulse text-xs">
+                                    <div className="py-12 text-center text-[#8F94A6] animate-pulse text-xs">
                                         Scanning on-chain Soulbound credentials...
                                     </div>
                                 ) : credentialsError ? (
@@ -652,7 +652,7 @@ export function UserProfileModal({
                                         <div className="text-sm font-semibold text-white">
                                             No Soulbound Credentials Minted Yet
                                         </div>
-                                        <p className="text-xs text-[#9B96AE] max-w-sm mx-auto leading-relaxed">
+                                        <p className="text-xs text-[#8F94A6] max-w-sm mx-auto leading-relaxed">
                                             When you finish a bounty and the hiring client or arbiter releases payment, a non-transferable Soulbound NFT badge will be minted directly to your address.
                                         </p>
                                     </div>
@@ -661,7 +661,7 @@ export function UserProfileModal({
                                         {credentials.map((cred) => (
                                             <div
                                                 key={cred.tokenId}
-                                                className="glass border border-white/10 rounded-xl p-3.5 hover:border-violet/50 transition group flex flex-col justify-between"
+                                                className="glass border border-white/10 rounded-xl p-3.5 hover:border-white/30 transition group flex flex-col justify-between"
                                             >
                                                 <div>
                                                     {cred.image ? (
@@ -671,7 +671,7 @@ export function UserProfileModal({
                                                             className="rounded-lg w-full h-auto aspect-[4/5] object-contain bg-black/40 border border-white/10 group-hover:scale-[1.02] transition shadow-inner"
                                                         />
                                                     ) : (
-                                                        <div className="rounded-lg w-full aspect-[4/5] bg-violet/10 flex items-center justify-center text-4xl border border-white/10">
+                                                        <div className="rounded-lg w-full aspect-[4/5] bg-[#0D1120] flex items-center justify-center text-4xl border border-white/10">
                                                             🏆
                                                         </div>
                                                     )}
@@ -683,21 +683,21 @@ export function UserProfileModal({
                                                         >
                                                             {cred.bountyTitle}
                                                         </span>
-                                                        <span className="text-[10px] font-mono font-bold text-violet bg-violet/10 px-2 py-0.5 rounded border border-violet/30 whitespace-nowrap">
+                                                        <span className="text-[10px] font-mono font-bold text-white/90 bg-white/10 px-2 py-0.5 rounded border border-white/20 whitespace-nowrap">
                                                             SBT #{cred.tokenId}
                                                         </span>
                                                     </div>
 
                                                     <div className="flex items-center justify-between mt-2 text-xs">
-                                                        <span className="text-[#9B96AE] text-[11px]">
+                                                        <span className="text-[#8F94A6] text-[11px]">
                                                             Payout:
                                                         </span>
-                                                        <span className="font-bold text-gold bg-gold/10 px-2 py-0.5 rounded border border-gold/30">
+                                                        <span className="font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded border border-white/20">
                                                             {cred.amount}
                                                         </span>
                                                     </div>
 
-                                                    <div className="flex items-center justify-between mt-1 text-[11px] text-[#9B96AE]">
+                                                    <div className="flex items-center justify-between mt-1 text-[11px] text-[#8F94A6]">
                                                         <span>Completed:</span>
                                                         <span>
                                                             {cred.completedAt > 0
@@ -713,7 +713,7 @@ export function UserProfileModal({
                                                     href={cred.explorerUrl}
                                                     target="_blank"
                                                     rel="noreferrer"
-                                                    className="mt-3 block text-center rounded-lg bg-white/10 hover:bg-violet hover:text-vault-bg py-1.5 text-xs font-semibold text-white transition border border-white/10"
+                                                    className="mt-3 block text-center rounded-lg bg-white/5 hover:bg-white hover:text-black py-1.5 text-xs font-semibold text-white transition border border-white/10"
                                                 >
                                                     View on Explorer ↗
                                                 </a>
