@@ -150,14 +150,14 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
     );
 
     const statusBorderColor = isOpen
-        ? 'border-l-blue-500'
+        ? 'border-l-white/40'
         : isAssigned
-        ? 'border-l-yellow-500'
+        ? 'border-l-amber-500/80'
         : isDisputed
-        ? 'border-l-red-500'
+        ? 'border-l-rose-500/80'
         : isCompleted
-        ? 'border-l-green-500'
-        : 'border-l-gray-500';
+        ? 'border-l-emerald-500/80'
+        : 'border-l-white/10';
 
     // Fetch proposals for this bounty
     useEffect(() => {
@@ -274,7 +274,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         href={getExplorerTxUrl(tx.hash, chainId)}
                         target="_blank"
                         rel="noreferrer"
-                        className="underline text-violet hover:text-white"
+                        className="underline text-white/80 hover:text-white"
                     >
                         View Tx
                     </a>
@@ -624,7 +624,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         href={getExplorerTxUrl(tx.hash, chainId)}
                         target="_blank"
                         rel="noreferrer"
-                        className="underline text-gold hover:text-white"
+                        className="underline text-white/80 hover:text-white"
                     >
                         View Tx
                     </a>
@@ -658,7 +658,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         href={getExplorerTxUrl(tx.hash, chainId)}
                         target="_blank"
                         rel="noreferrer"
-                        className="underline text-violet hover:text-white"
+                        className="underline text-white/80 hover:text-white"
                     >
                         View Tx
                     </a>
@@ -692,7 +692,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         href={getExplorerTxUrl(tx.hash, chainId)}
                         target="_blank"
                         rel="noreferrer"
-                        className="underline text-violet hover:text-white"
+                        className="underline text-white/80 hover:text-white"
                     >
                         View Tx
                     </a>
@@ -752,7 +752,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         href={getExplorerTxUrl(tx.hash, chainId)}
                         target="_blank"
                         rel="noreferrer"
-                        className="underline text-violet hover:text-white"
+                        className="underline text-white/80 hover:text-white"
                     >
                         View Tx
                     </a>
@@ -788,7 +788,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         href={getExplorerTxUrl(tx.hash, chainId)}
                         target="_blank"
                         rel="noreferrer"
-                        className="underline text-violet hover:text-white"
+                        className="underline text-white/80 hover:text-white"
                     >
                         View Tx
                     </a>
@@ -822,7 +822,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         href={getExplorerTxUrl(tx.hash, chainId)}
                         target="_blank"
                         rel="noreferrer"
-                        className="underline text-violet hover:text-white"
+                        className="underline text-white/80 hover:text-white"
                     >
                         View Tx
                     </a>
@@ -904,34 +904,37 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
             {/* Top Bar: Category Pill & Status Badge */}
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-violet/20 border border-violet/30 px-2.5 py-0.5 text-xs font-medium text-violet-300">
+                    <span className="rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-xs font-mono text-[#8F94A6]">
                         {bounty.category || 'General'}
                     </span>
-                    <span className="font-mono text-xs text-[#9B96AE]">Bounty #{bounty.id}</span>
+                    <span className="font-mono text-xs text-[#8F94A6]">Bounty #{bounty.id}</span>
                 </div>
                 <StatusBadge status={bounty.status} />
             </div>
 
             {/* Title & Reward */}
             <div>
-                <h2 className="text-xl font-semibold text-[#F1EEE6] leading-snug">{bounty.title}</h2>
+                <h2 className="text-xl font-semibold text-white leading-snug">{bounty.title}</h2>
                 <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
                     <div className="flex items-center gap-2">
-                        <p className="font-display text-2xl text-gold">{bounty.amount} {currency}</p>
+                        <p className="font-display text-2xl text-white tracking-tight">
+                            {bounty.amount}{' '}
+                            <span className="font-mono text-base font-normal text-[#8F94A6]">{currency}</span>
+                        </p>
                         <span
-                            className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                            className={`px-2 py-0.5 text-[10px] font-mono font-medium rounded-full ${
                                 currency === 'USDC'
-                                    ? 'bg-[#2775CA]/20 text-[#2775CA] border border-[#2775CA]/40'
-                                    : 'bg-gold/15 text-gold border border-gold/30'
+                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/30'
+                                    : 'bg-white/10 text-white/90 border border-white/20'
                             }`}
                         >
                             {currency}
                         </span>
                     </div>
                     {bounty.remainingBalance && (
-                        <p className="text-xs text-[#9B96AE]">
+                        <p className="text-xs text-[#8F94A6]">
                             Remaining Escrow:{' '}
-                            <span className="font-mono text-[#F1EEE6]">{bounty.remainingBalance} {currency}</span>
+                            <span className="font-mono text-white">{bounty.remainingBalance} {currency}</span>
                         </p>
                     )}
                 </div>
@@ -976,23 +979,23 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
             )}
 
             {/* Address Details with Clickable Block Explorer Links & Profile Modals */}
-            <div className="space-y-1.5 text-xs text-[#9B96AE] border-t border-white/10 pt-3">
+            <div className="space-y-1.5 text-xs text-[#8F94A6] border-t border-white/10 pt-3">
                 <div className="flex items-center gap-1.5 flex-wrap">
                     <span>Client:</span>
                     <button
                         type="button"
                         onClick={() => onViewProfile?.(bounty.client)}
-                        className="font-mono text-[#F1EEE6] hover:text-violet transition underline decoration-white/20 inline-flex items-center gap-1 cursor-pointer"
+                        className="font-mono text-white hover:text-white/80 transition underline decoration-white/20 inline-flex items-center gap-1 cursor-pointer"
                         title="View User Reputation Profile"
                     >
                         <span>{bounty.client}</span>
-                        <span className="text-[10px] bg-white/10 px-1.5 py-0.2 rounded text-gold">👤 Profile</span>
+                        <span className="text-[10px] bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-[#8F94A6] hover:text-white">Profile 👤</span>
                     </button>
                     <a
                         href={getExplorerAddressUrl(bounty.client, chainId)}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[#9B96AE] hover:text-white text-[11px]"
+                        className="text-[#8F94A6] hover:text-white text-[11px]"
                         title="View on block explorer"
                     >
                         ↗
@@ -1005,24 +1008,24 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                             <button
                                 type="button"
                                 onClick={() => onViewProfile?.(bounty.freelancer)}
-                                className="font-mono text-[#F1EEE6] hover:text-violet transition underline decoration-white/20 inline-flex items-center gap-1 cursor-pointer"
+                                className="font-mono text-white hover:text-white/80 transition underline decoration-white/20 inline-flex items-center gap-1 cursor-pointer"
                                 title="View User Reputation Profile"
                             >
                                 <span>{bounty.freelancer}</span>
-                                <span className="text-[10px] bg-white/10 px-1.5 py-0.2 rounded text-gold">👤 Profile</span>
+                                <span className="text-[10px] bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-[#8F94A6] hover:text-white">Profile 👤</span>
                             </button>
                             <a
                                 href={getExplorerAddressUrl(bounty.freelancer, chainId)}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-[#9B96AE] hover:text-white text-[11px]"
+                                className="text-[#8F94A6] hover:text-white text-[11px]"
                                 title="View on block explorer"
                             >
                                 ↗
                             </a>
                         </>
                     ) : (
-                        <span className="font-mono text-[#9B96AE]">Not assigned yet</span>
+                        <span className="font-mono text-[#8F94A6]">Not assigned yet</span>
                     )}
                 </div>
                 {bounty.arbiter && (
@@ -1032,7 +1035,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                             href={getExplorerAddressUrl(bounty.arbiter, chainId)}
                             target="_blank"
                             rel="noreferrer"
-                            className="font-mono text-[#9B96AE] hover:text-violet transition underline decoration-white/20"
+                            className="font-mono text-[#8F94A6] hover:text-white transition underline decoration-white/20"
                         >
                             {bounty.arbiter}
                         </a>
@@ -1042,7 +1045,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
 
             {/* Assigned Freelancer Pill */}
             {isFreelancer && (
-                <div className="inline-block rounded-full bg-violet/20 border border-violet/30 px-3 py-1 text-xs font-medium text-violet-300">
+                <div className="inline-block rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 text-xs font-medium text-emerald-300">
                     ✨ You are the assigned freelancer
                 </div>
             )}
@@ -1052,44 +1055,44 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                 <div>
                     {isEncrypted ? (
                         !isAuthorizedParty ? (
-                            <div className="rounded-xl border border-violet/40 bg-violet/10 p-4 relative overflow-hidden">
+                            <div className="rounded-xl border border-white/10 bg-[#0D1120] p-4 relative overflow-hidden">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <span className="text-base">🔒</span>
-                                        <h4 className="text-sm font-semibold text-violet">
+                                        <h4 className="text-sm font-semibold text-white">
                                             Protected Deliverable (Client & Arbiter Only)
                                         </h4>
                                     </div>
-                                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-violet/20 border border-violet/40 text-violet">
+                                    <span className="text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white/90">
                                         Encrypted
                                     </span>
                                 </div>
-                                <p className="mt-1 text-xs text-[#9B96AE]">
+                                <p className="mt-1 text-xs text-[#8F94A6]">
                                     This deliverable was submitted in encrypted mode to protect proprietary code & audits. Decryption keys are held solely by the Client and Arbiter.
                                 </p>
                                 <div className="mt-3 filter blur-sm select-none opacity-40 bg-white/5 rounded-lg p-3 font-mono text-xs text-white">
                                     https://github.com/proprietary-audit/deliverables/audit-report-confidential-encrypted-envelope-payload-secret
                                 </div>
-                                <div className="mt-2 text-center text-xs font-semibold text-[#9B96AE] flex items-center justify-center gap-1.5">
+                                <div className="mt-2 text-center text-xs font-semibold text-[#8F94A6] flex items-center justify-center gap-1.5">
                                     <span>🔒</span> Confidential Deliverable
                                 </div>
                             </div>
                         ) : (
-                            <div className="rounded-xl border border-violet/40 bg-violet/10 p-4 space-y-3">
+                            <div className="rounded-xl border border-white/10 bg-[#0D1120] p-4 space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <span className="text-base">🔒</span>
-                                        <h4 className="text-sm font-semibold text-violet">
+                                        <h4 className="text-sm font-semibold text-white">
                                             Protected Deliverable (Client & Arbiter Authorized)
                                         </h4>
                                     </div>
                                     {bounty.submittedAt > 0 && (
-                                        <span className="text-[11px] text-[#9B96AE]">
+                                        <span className="text-[11px] text-[#8F94A6]">
                                             {new Date(bounty.submittedAt * 1000).toLocaleString()}
                                         </span>
                                     )}
                                 </div>
-                                <p className="text-xs text-[#9B96AE]">
+                                <p className="text-xs text-[#8F94A6]">
                                     This deliverable was encrypted with AES-GCM-256 for proprietary confidentiality. As an authorized party, you can decrypt and inspect the verified work proof.
                                 </p>
 
@@ -1111,7 +1114,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                                 href={decryptedDeliverable}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="inline-flex items-center gap-1 text-xs text-mint underline hover:text-white pt-1"
+                                                className="inline-flex items-center gap-1 text-xs text-emerald-300 underline hover:text-white pt-1"
                                             >
                                                 <span>Open Deliverable Link</span>
                                                 <span>↗</span>
@@ -1124,7 +1127,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                             type="button"
                                             onClick={handleDecryptDeliverable}
                                             disabled={isDecrypting}
-                                            className="rounded-lg bg-violet px-4 py-2 text-xs font-bold text-vault-bg hover:brightness-110 disabled:opacity-50 transition shadow-md flex items-center gap-1.5"
+                                            className="rounded-lg bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 active:scale-[0.98] disabled:opacity-50 transition shadow-sm flex items-center gap-1.5"
                                         >
                                             <span>{isDecrypting ? '⏳' : '🔓'}</span>
                                             <span>{isDecrypting ? 'Decrypting...' : 'Decrypt Deliverable'}</span>
@@ -1202,7 +1205,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         <button
                             type="button"
                             onClick={() => setIsCommentsOpen(!isCommentsOpen)}
-                            className="text-xs text-gold hover:text-white transition font-medium"
+                            className="text-xs text-white/80 hover:text-white transition font-medium"
                         >
                             {isCommentsOpen ? 'Collapse Discussion ▲' : 'Open Thread ▼'}
                         </button>
@@ -1211,11 +1214,11 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                     {isCommentsOpen && (
                         <div className="space-y-3 pt-2 border-t border-white/10">
                             {commentsLoading ? (
-                                <div className="py-4 text-center text-xs text-[#9B96AE] animate-pulse">
+                                <div className="py-4 text-center text-xs text-[#8F94A6] animate-pulse">
                                     Loading discussion messages...
                                 </div>
                             ) : comments.length === 0 ? (
-                                <div className="rounded-lg border border-white/5 bg-white/[0.02] py-4 text-center text-xs text-[#9B96AE]">
+                                <div className="rounded-lg border border-white/5 bg-white/[0.02] py-4 text-center text-xs text-[#8F94A6]">
                                     No revisions or feedback messages posted yet.
                                 </div>
                             ) : (
@@ -1230,10 +1233,10 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                                     <button
                                                         type="button"
                                                         onClick={() => onViewProfile?.(c.author)}
-                                                        className="font-semibold text-xs text-white hover:text-gold transition flex items-center gap-1.5 cursor-pointer"
+                                                        className="font-semibold text-xs text-white hover:underline transition flex items-center gap-1.5 cursor-pointer"
                                                         title="View user reputation"
                                                     >
-                                                        <span className="h-5 w-5 rounded-full bg-violet/30 border border-violet/40 flex items-center justify-center text-[10px] font-bold text-violet-200">
+                                                        <span className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-[10px] font-bold text-white">
                                                             {(c.user?.username || c.author.slice(2, 4))
                                                                 .slice(0, 2)
                                                                 .toUpperCase()}
@@ -1250,7 +1253,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                                         </span>
                                                     )}
                                                     {c.author.toLowerCase() === bounty.freelancer.toLowerCase() && (
-                                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-violet/20 text-violet-300 border border-violet/30">
+                                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-white/10 text-white/80 border border-white/20">
                                                             Freelancer
                                                         </span>
                                                     )}
@@ -1268,11 +1271,11 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                                         </span>
                                                     )}
                                                     {c.type === 'MESSAGE' && (
-                                                        <span className="rounded-full bg-white/10 border border-white/10 px-2 py-0.5 text-[10px] font-medium text-[#9B96AE]">
+                                                        <span className="rounded-full bg-white/10 border border-white/10 px-2 py-0.5 text-[10px] font-medium text-[#8F94A6]">
                                                             💬 Note
                                                         </span>
                                                     )}
-                                                    <span className="text-[10px] text-[#9B96AE]">
+                                                    <span className="text-[10px] text-[#8F94A6]">
                                                         {new Date(c.createdAt).toLocaleTimeString([], {
                                                             hour: '2-digit',
                                                             minute: '2-digit',
@@ -1302,7 +1305,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                             ? 'Provide revision notes, answers to feedback, or deliverable updates...'
                                             : 'Add a discussion note...'
                                     }
-                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
+                                    className="w-full rounded-xl border border-white/10 bg-[#0D1120] px-3 py-2 text-xs text-[#F1EEE6] placeholder:text-[#8F94A6]/60 focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                 />
 
                                 {commentStatusMessage && (
@@ -1361,14 +1364,14 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
 
             {/* FREELANCER DELIVERABLE SUBMISSION PANEL */}
             {isFreelancer && isAssigned && !isDisputed && !isCompleted && (
-                <div className="rounded-xl border border-violet/40 bg-violet/10 p-4 space-y-3">
+                <div className="rounded-xl border border-white/10 bg-[#0D1120] p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-violet-200">
+                        <h4 className="text-sm font-semibold text-white">
                             Submit Deliverable Proof (On-Chain)
                         </h4>
-                        <span className="text-xs text-[#9B96AE]">Permanent Proof</span>
+                        <span className="text-xs text-[#8F94A6]">Permanent Proof</span>
                     </div>
-                    <p className="text-xs text-[#9B96AE]">
+                    <p className="text-xs text-[#8F94A6]">
                         Provide your GitHub Pull Request, IPFS hash, or live project demo URL. This records proof on the escrow contract for the client and arbiter.
                     </p>
                     <div className="flex gap-2">
@@ -1376,12 +1379,12 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                             value={deliverableInput}
                             onChange={(e) => setDeliverableInput(e.target.value)}
                             placeholder="https://github.com/.../pull/1 or ipfs://..."
-                            className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none font-mono"
+                            className="flex-1 rounded-lg border border-white/10 bg-[#111624] px-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#8F94A6]/60 focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none font-mono"
                         />
                         <button
                             onClick={handleSubmitWork}
                             disabled={isSubmitting || !deliverableInput.trim()}
-                            className="rounded-lg bg-mint px-4 py-2 text-sm font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50 whitespace-nowrap"
+                            className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] disabled:opacity-50 whitespace-nowrap shadow-sm"
                         >
                             {isSubmitting ? 'Recording...' : 'Submit Work Proof'}
                         </button>
@@ -1392,14 +1395,14 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                             type="checkbox"
                             checked={encryptDeliverable}
                             onChange={(e) => setEncryptDeliverable(e.target.checked)}
-                            className="rounded border-white/20 bg-white/5 text-violet focus:ring-violet/40 h-3.5 w-3.5"
+                            className="rounded border-white/20 bg-white/5 text-white accent-white h-3.5 w-3.5"
                         />
-                        <span className="flex items-center gap-1.5 font-medium">
+                        <span className="flex items-center gap-1.5 font-medium text-white">
                             <span>🔒</span> Encrypt Deliverable (Proprietary / Audit Work)
                         </span>
                     </label>
                     {encryptDeliverable && (
-                        <div className="rounded-lg bg-violet/20 border border-violet/30 p-2.5 text-[11px] text-violet-200">
+                        <div className="rounded-lg bg-white/5 border border-white/10 p-2.5 text-[11px] text-[#8F94A6]">
                             🔐 Client-side encryption enabled (AES-GCM-256). Deliverable plaintext will be encrypted before submission. Only the hiring client and platform arbiter can decrypt it.
                         </div>
                     )}
@@ -1442,7 +1445,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         <button
                             type="button"
                             onClick={() => setShowProposalForm(!showProposalForm)}
-                            className="rounded-lg bg-violet px-3 py-1.5 text-xs font-semibold text-vault-bg transition hover:brightness-110"
+                            className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] shadow-sm"
                         >
                             {showProposalForm ? 'Close Form' : 'Apply / Bid'}
                         </button>
@@ -1451,7 +1454,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                     {showProposalForm && (
                         <form onSubmit={handleProposalSubmit} className="mt-4 space-y-3 pt-3 border-t border-white/10">
                             <div>
-                                <label className="text-xs font-medium text-[#9B96AE]">
+                                <label className="text-xs font-medium text-[#8F94A6]">
                                     Cover Letter & Approach *
                                 </label>
                                 <textarea
@@ -1459,13 +1462,13 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                     value={coverLetter}
                                     onChange={(e) => setCoverLetter(e.target.value)}
                                     placeholder="Explain how you will complete this bounty and your relevant experience..."
-                                    className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
+                                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#0D1120] px-3 py-2 text-xs text-[#F1EEE6] placeholder:text-[#8F94A6]/60 focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                 />
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-xs font-medium text-[#9B96AE]">
+                                    <label className="text-xs font-medium text-[#8F94A6]">
                                         Estimated Turnaround (Days)
                                     </label>
                                     <input
@@ -1473,19 +1476,19 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                         min="1"
                                         value={timelineDays}
                                         onChange={(e) => setTimelineDays(e.target.value)}
-                                        className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
+                                        className="mt-1 w-full rounded-lg border border-white/10 bg-[#0D1120] px-3 py-2 text-xs text-[#F1EEE6] focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                         placeholder="7"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-medium text-[#9B96AE]">
+                                    <label className="text-xs font-medium text-[#8F94A6]">
                                         Portfolio / GitHub URL (Optional)
                                     </label>
                                     <input
                                         value={portfolioUrl}
                                         onChange={(e) => setPortfolioUrl(e.target.value)}
                                         placeholder="https://github.com/yourhandle"
-                                        className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
+                                        className="mt-1 w-full rounded-lg border border-white/10 bg-[#0D1120] px-3 py-2 text-xs text-[#F1EEE6] focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                     />
                                 </div>
                             </div>
@@ -1495,14 +1498,14 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                     type="checkbox"
                                     checked={signProposal}
                                     onChange={(e) => setSignProposal(e.target.checked)}
-                                    className="rounded border-white/20 bg-white/5 text-violet focus:ring-violet/40 h-3.5 w-3.5"
+                                    className="rounded border-white/20 bg-white/5 text-white accent-white h-3.5 w-3.5"
                                 />
-                                <span className="font-medium text-violet-200 flex items-center gap-1.5">
+                                <span className="font-medium text-white flex items-center gap-1.5">
                                     <span>✍️</span> Sign proposal with connected wallet (0 gas proof)
                                 </span>
                             </label>
                             {signProposal && (
-                                <p className="text-[11px] text-[#9B96AE] pl-5">
+                                <p className="text-[11px] text-[#8F94A6] pl-5">
                                     Generates an EIP-712 cryptographic signature in MetaMask with zero transaction cost. Proves you control this wallet and prevents spam proposals.
                                 </p>
                             )}
@@ -1510,7 +1513,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                             <button
                                 type="submit"
                                 disabled={isSubmitting || !coverLetter.trim()}
-                                className="rounded-lg bg-gold px-4 py-2 text-xs font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50"
+                                className="rounded-lg bg-white px-4 py-2 text-xs font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] disabled:opacity-50 shadow-sm"
                             >
                                 {isSubmitting ? 'Submitting...' : 'Send Proposal'}
                             </button>
@@ -1527,14 +1530,14 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                             <h4 className="text-sm font-semibold text-[#F1EEE6]">
                                 Freelancer Proposals
                             </h4>
-                            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-mono text-[#9B96AE]">
+                            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-mono text-[#8F94A6]">
                                 {proposals.length}
                             </span>
                         </div>
                         <button
                             type="button"
                             onClick={() => setShowProposalsList(!showProposalsList)}
-                            className="text-xs text-gold hover:text-white transition underline"
+                            className="text-xs text-white/80 hover:text-white transition underline"
                         >
                             {showProposalsList ? 'Hide Applicants' : `View Proposals (${proposals.length})`}
                         </button>
@@ -1559,24 +1562,24 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                                 <button
                                                     type="button"
                                                     onClick={() => onViewProfile?.(p.freelancerAddress)}
-                                                    className="font-mono text-xs text-violet-300 hover:text-white transition underline flex items-center gap-1 cursor-pointer"
+                                                    className="font-mono text-xs text-white hover:underline transition flex items-center gap-1 cursor-pointer"
                                                     title="View Applicant Reputation & Badges"
                                                 >
                                                     <span>{p.freelancerAddress.slice(0, 6)}...{p.freelancerAddress.slice(-4)}</span>
-                                                    <span className="text-[9px] bg-violet/20 border border-violet/40 px-1 py-0.2 rounded text-violet-200">
-                                                        👤 Profile
+                                                    <span className="text-[9px] bg-white/5 border border-white/10 px-1 py-0.2 rounded text-[#8F94A6]">
+                                                        Profile 👤
                                                     </span>
                                                 </button>
                                                 <a
                                                     href={getExplorerAddressUrl(p.freelancerAddress, chainId)}
                                                     target="_blank"
                                                     rel="noreferrer"
-                                                    className="text-[11px] text-[#9B96AE] hover:text-white"
+                                                    className="text-[11px] text-[#8F94A6] hover:text-white"
                                                     title="View on block explorer"
                                                 >
                                                     ↗
                                                 </a>
-                                                <span className="text-[11px] text-[#9B96AE]">
+                                                <span className="text-[11px] text-[#8F94A6]">
                                                     ⏱ {p.timelineDays} days
                                                 </span>
                                             </div>
@@ -1584,24 +1587,24 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                                                 {p.isVerified && (
                                                     <span
-                                                        className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 flex items-center gap-1 shadow-sm"
+                                                        className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 flex items-center gap-1 shadow-sm"
                                                         title="EIP-712 Cryptographic Signature verified off-chain with 0 gas"
                                                     >
                                                         <span>✓</span> Cryptographically Verified Signer
                                                     </span>
                                                 )}
                                                 {p.status === 'ACCEPTED' && p.isVerified && (
-                                                    <span className="rounded-full bg-violet/20 border border-violet/40 px-2 py-0.5 text-[10px] font-semibold text-violet flex items-center gap-1">
+                                                    <span className="rounded-full bg-white/10 border border-white/20 px-2 py-0.5 text-[10px] font-semibold text-white/90 flex items-center gap-1">
                                                         <span>✍️</span> Cryptographically Signed
                                                     </span>
                                                 )}
                                                 <span
-                                                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold font-mono ${
                                                         p.status === 'ACCEPTED'
-                                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                                            ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30'
                                                             : p.status === 'REJECTED'
-                                                            ? 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
-                                                            : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+                                                            ? 'bg-rose-500/10 text-rose-300 border border-rose-500/30'
+                                                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
                                                     }`}
                                                 >
                                                     {p.status}
@@ -1612,7 +1615,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                                     <button
                                                         onClick={() => handleHireProposal(p)}
                                                         disabled={isSubmitting}
-                                                        className="rounded-lg bg-mint px-3 py-1 text-xs font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50 shadow-sm"
+                                                        className="rounded-lg bg-white px-3 py-1 text-xs font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] disabled:opacity-50 shadow-sm"
                                                     >
                                                         ⚡ Hire & Assign On-Chain
                                                     </button>
@@ -1633,7 +1636,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                                 }
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="inline-block text-[11px] text-gold hover:text-white transition underline"
+                                                className="inline-block text-[11px] text-white/80 hover:text-white transition underline"
                                             >
                                                 Portfolio / Link ↗
                                             </a>
@@ -1667,7 +1670,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         <button
                             type="button"
                             onClick={() => setShowManualAssign(!showManualAssign)}
-                            className="text-xs text-[#9B96AE] hover:text-white transition underline"
+                            className="text-xs text-[#8F94A6] hover:text-white transition underline"
                         >
                             {showManualAssign ? 'Hide manual address input' : 'Or assign wallet address directly'}
                         </button>
@@ -1675,7 +1678,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         <button
                             onClick={handleCancelAndRefund}
                             disabled={isSubmitting}
-                            className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
+                            className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
                         >
                             Cancel & Refund (100%)
                         </button>
@@ -1683,18 +1686,18 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
 
                     {showManualAssign && (
                         <div className="space-y-2">
-                            <label className="text-xs text-[#9B96AE]">Direct Freelancer Address</label>
+                            <label className="text-xs text-[#8F94A6]">Direct Freelancer Address</label>
                             <div className="flex gap-2">
                                 <input
                                     value={freelancerInput}
                                     onChange={(e) => setFreelancerInput(e.target.value)}
                                     placeholder="0x..."
-                                    className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-mono text-xs text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
+                                    className="flex-1 rounded-lg border border-white/10 bg-[#0D1120] px-3 py-2 font-mono text-xs text-[#F1EEE6] focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                 />
                                 <button
                                     onClick={handleAssign}
                                     disabled={isSubmitting}
-                                    className="rounded-lg bg-violet px-4 py-2 text-xs font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50"
+                                    className="rounded-lg bg-white px-4 py-2 text-xs font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] disabled:opacity-50 shadow-sm"
                                 >
                                     Assign
                                 </button>
@@ -1711,7 +1714,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         <button
                             onClick={handleRelease}
                             disabled={isSubmitting}
-                            className="rounded-lg bg-mint px-4 py-2 text-sm font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50"
+                            className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] disabled:opacity-50 shadow-sm"
                         >
                             {isSubmitting ? 'Releasing...' : 'Release Full Payment'}
                         </button>
@@ -1721,7 +1724,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         <button
                             onClick={handleRefundRemainder}
                             disabled={isSubmitting}
-                            className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50"
+                            className="rounded-lg bg-white/10 border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20 disabled:opacity-50 shadow-sm"
                         >
                             Refund Unallocated Remainder ({remainingAmount.toFixed(4)} {currency})
                         </button>
@@ -1731,7 +1734,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                         <button
                             onClick={handleRaiseDispute}
                             disabled={isSubmitting}
-                            className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
+                            className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
                         >
                             Raise Dispute
                         </button>
@@ -1808,20 +1811,20 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                 >
                                     <div>
                                         <p className="text-sm text-[#F1EEE6]">{m.description}</p>
-                                        <p className="font-mono text-xs text-[#9B96AE]">{m.amount} {currency}</p>
+                                        <p className="font-mono text-xs text-[#8F94A6]">{m.amount} {currency}</p>
                                     </div>
                                     {m.completed ? (
-                                        <span className="text-xs font-medium text-mint">Paid</span>
+                                        <span className="text-xs font-mono font-medium text-emerald-400">Paid ✓</span>
                                     ) : isClient && isAssigned ? (
                                         <button
                                             onClick={() => handleApproveMilestone(m.index)}
                                             disabled={isSubmitting}
-                                            className="rounded-lg bg-mint px-3 py-1 text-xs font-semibold text-vault-bg hover:brightness-110 disabled:opacity-50"
+                                            className="rounded-lg bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-white/90 active:scale-[0.98] disabled:opacity-50 shadow-sm"
                                         >
                                             Approve
                                         </button>
                                     ) : (
-                                        <span className="text-xs font-medium text-gold">Pending approval</span>
+                                        <span className="text-xs font-mono font-medium text-amber-300/80">Pending approval</span>
                                     )}
                                 </div>
                             ))}
@@ -1834,18 +1837,18 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
                                 value={milestoneDescription}
                                 onChange={(e) => setMilestoneDescription(e.target.value)}
                                 placeholder="Milestone description"
-                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
+                                className="w-full rounded-lg border border-white/10 bg-[#0D1120] px-3 py-2 text-sm text-[#F1EEE6] focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                             />
                             <input
                                 value={milestoneAmount}
                                 onChange={(e) => setMilestoneAmount(e.target.value)}
                                 placeholder={`Amount (up to ${(Number(bounty.amount) - allocatedAmount).toFixed(4)} ${currency})`}
-                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
+                                className="w-full rounded-lg border border-white/10 bg-[#0D1120] px-3 py-2 text-sm text-[#F1EEE6] focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none font-mono"
                             />
                             <button
                                 onClick={handleAddMilestone}
                                 disabled={isSubmitting}
-                                className="rounded-lg bg-violet px-4 py-2 text-sm font-semibold text-vault-bg hover:brightness-110 disabled:opacity-50"
+                                className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90 active:scale-[0.98] disabled:opacity-50 shadow-sm"
                             >
                                 {isSubmitting ? 'Adding...' : 'Add Milestone'}
                             </button>
@@ -1855,7 +1858,7 @@ export function BountyCard({ bounty, connectedAddress, signer, chainId, onUpdate
             )}
 
             {/* Status Feedback Message */}
-            {statusMessage && <div className="text-sm text-[#9B96AE]">{statusMessage}</div>}
+            {statusMessage && <div className="text-sm text-[#8F94A6]">{statusMessage}</div>}
         </div>
     );
 }
@@ -1864,37 +1867,37 @@ function StatusBadge({ status }: { status: number }) {
     switch (status) {
         case 0:
             return (
-                <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-400">
+                <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-0.5 text-xs font-mono font-medium text-white/90">
                     Open
                 </span>
             );
         case 1:
             return (
-                <span className="rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-xs font-semibold text-yellow-400">
+                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-mono font-medium text-amber-300">
                     Assigned
                 </span>
             );
         case 2:
             return (
-                <span className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-400">
+                <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-0.5 text-xs font-mono font-medium text-rose-300">
                     Disputed
                 </span>
             );
         case 3:
             return (
-                <span className="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-400">
+                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-mono font-medium text-emerald-300">
                     Completed
                 </span>
             );
         case 4:
             return (
-                <span className="rounded-full border border-gray-500/30 bg-gray-500/10 px-3 py-1 text-xs font-semibold text-gray-400">
+                <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs font-mono font-medium text-[#8F94A6]">
                     Cancelled
                 </span>
             );
         default:
             return (
-                <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-400">
+                <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-0.5 text-xs font-mono font-medium text-white/90">
                     Open
                 </span>
             );

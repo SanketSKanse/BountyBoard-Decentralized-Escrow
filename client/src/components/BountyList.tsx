@@ -170,7 +170,7 @@ export function BountyList({
                                 <button
                                     type="button"
                                     onClick={onOpenActivityFeed}
-                                    className="text-xs text-gold hover:underline transition font-semibold"
+                                    className="text-xs text-white/80 hover:text-white hover:underline transition font-semibold"
                                 >
                                     Full Feed ↗
                                 </button>
@@ -178,7 +178,7 @@ export function BountyList({
                             <button
                                 type="button"
                                 onClick={() => setIsTickerOpen(!isTickerOpen)}
-                                className="text-xs text-[#9B96AE] hover:text-white transition p-1"
+                                className="text-xs text-[#8F94A6] hover:text-white transition p-1"
                                 title={isTickerOpen ? 'Collapse live ticker' : 'Expand live ticker'}
                             >
                                 {isTickerOpen ? '▲' : '▼'}
@@ -204,11 +204,11 @@ export function BountyList({
                                             <span className="text-white font-medium truncate">
                                                 {ev.bounty?.title || `Bounty #${ev.bountyId}`}
                                             </span>
-                                            <span className="font-mono text-[#9B96AE] text-[11px] hidden sm:inline">
+                                            <span className="font-mono text-[#8F94A6] text-[11px] hidden sm:inline">
                                                 by {ev.actor.slice(0, 6)}...{ev.actor.slice(-4)}
                                             </span>
                                         </div>
-                                        <span className="text-[10px] text-[#9B96AE] whitespace-nowrap">
+                                        <span className="text-[10px] text-[#8F94A6] whitespace-nowrap">
                                             {new Date(ev.createdAt).toLocaleTimeString([], {
                                                 hour: '2-digit',
                                                 minute: '2-digit',
@@ -227,17 +227,17 @@ export function BountyList({
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                     {/* Search Input */}
                     <div className="relative flex-1">
-                        <span className="absolute left-3 top-2.5 text-[#9B96AE] text-sm">🔍</span>
+                        <span className="absolute left-3 top-2.5 text-[#8F94A6] text-sm">🔍</span>
                         <input
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search by title, description, or skill tag..."
-                            className="w-full rounded-xl border border-white/10 bg-white/5 pl-9 pr-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
+                            className="w-full rounded-xl border border-white/10 bg-[#0D1120] pl-9 pr-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#8F94A6]/60 focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                         />
                         {searchQuery && (
                             <button
                                 onClick={() => setSearchQuery('')}
-                                className="absolute right-3 top-2.5 text-xs text-[#9B96AE] hover:text-white"
+                                className="absolute right-3 top-2.5 text-xs text-[#8F94A6] hover:text-white"
                             >
                                 ✕
                             </button>
@@ -248,10 +248,10 @@ export function BountyList({
                     <select
                         value={selectedCategory}
                         onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="rounded-xl border border-white/10 bg-[#161426] px-3 py-2 text-sm text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
+                        className="rounded-xl border border-white/10 bg-[#111624] px-3 py-2 text-sm text-[#F1EEE6] focus:border-white/40 focus:outline-none"
                     >
                         {CATEGORIES.map((cat) => (
-                            <option key={cat} value={cat} className="bg-[#161426] text-[#F1EEE6]">
+                            <option key={cat} value={cat} className="bg-[#111624] text-[#F1EEE6]">
                                 {cat}
                             </option>
                         ))}
@@ -270,8 +270,8 @@ export function BountyList({
                                     onClick={() => setSelectedStatus(s.value)}
                                     className={`rounded-lg px-2.5 py-1 font-medium transition ${
                                         isSelected
-                                            ? 'bg-violet text-vault-bg font-semibold shadow-sm'
-                                            : 'bg-white/5 text-[#9B96AE] hover:text-white hover:bg-white/10'
+                                            ? 'bg-white text-black font-semibold shadow-sm'
+                                            : 'bg-white/5 text-[#8F94A6] hover:text-white hover:bg-white/10'
                                     }`}
                                 >
                                     {s.label}
@@ -288,7 +288,7 @@ export function BountyList({
                                 className={`rounded-md px-2 py-0.5 transition ${
                                     roleFilter === 'ALL'
                                         ? 'bg-white/20 text-white font-medium'
-                                        : 'text-[#9B96AE] hover:text-white'
+                                        : 'text-[#8F94A6] hover:text-white'
                                 }`}
                             >
                                 All
@@ -298,7 +298,7 @@ export function BountyList({
                                 className={`rounded-md px-2 py-0.5 transition ${
                                     roleFilter === 'CLIENT'
                                         ? 'bg-white/20 text-white font-medium'
-                                        : 'text-[#9B96AE] hover:text-white'
+                                        : 'text-[#8F94A6] hover:text-white'
                                 }`}
                             >
                                 Created by Me
@@ -308,7 +308,7 @@ export function BountyList({
                                 className={`rounded-md px-2 py-0.5 transition ${
                                     roleFilter === 'FREELANCER'
                                         ? 'bg-white/20 text-white font-medium'
-                                        : 'text-[#9B96AE] hover:text-white'
+                                        : 'text-[#8F94A6] hover:text-white'
                                 }`}
                             >
                                 Assigned to Me
@@ -318,7 +318,7 @@ export function BountyList({
                 </div>
 
                 {/* Filter Summary & Clear Action */}
-                <div className="flex items-center justify-between text-xs text-[#9B96AE] pt-1">
+                <div className="flex items-center justify-between text-xs text-[#8F94A6] pt-1">
                     <span>
                         Showing <strong className="text-[#F1EEE6]">{filteredBounties.length}</strong> of{' '}
                         {bounties.length} bounties
@@ -326,7 +326,7 @@ export function BountyList({
                     {isFiltered && (
                         <button
                             onClick={handleClearFilters}
-                            className="text-gold hover:text-white transition underline"
+                            className="text-white/80 hover:text-white transition underline"
                         >
                             Reset all filters
                         </button>

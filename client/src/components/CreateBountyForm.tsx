@@ -169,7 +169,7 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                         href={getExplorerTxUrl(tx.hash, chainId)}
                         target="_blank"
                         rel="noreferrer"
-                        className="underline text-gold hover:text-white"
+                        className="underline text-white/80 hover:text-white font-mono text-xs"
                     >
                         View Tx on Explorer
                     </a>
@@ -206,7 +206,7 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                 <button
                     type="button"
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="text-xs text-gold hover:text-white transition underline"
+                    className="text-xs text-white/80 hover:text-white transition underline"
                 >
                     {isExpanded ? 'Collapse Form' : '+ New Bounty Form'}
                 </button>
@@ -216,23 +216,23 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                 <form onSubmit={handleSubmit} className="mt-5 space-y-4">
                     {/* Title */}
                     <div>
-                        <label className="text-xs font-medium text-[#9B96AE]">Bounty Title *</label>
+                        <label className="text-xs font-medium text-[#8F94A6]">Bounty Title *</label>
                         <input
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
+                            className="mt-1 w-full rounded-lg border border-white/10 bg-[#0D1120] px-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#8F94A6]/60 focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                             placeholder="e.g. Build an Escrow Dashboard with Ethers.js"
                         />
                     </div>
 
                     {/* Description */}
                     <div>
-                        <label className="text-xs font-medium text-[#9B96AE]">Project Description</label>
+                        <label className="text-xs font-medium text-[#8F94A6]">Project Description</label>
                         <textarea
                             rows={3}
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
+                            className="mt-1 w-full rounded-lg border border-white/10 bg-[#0D1120] px-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#8F94A6]/60 focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                             placeholder="Describe deliverables, requirements, acceptance criteria, or links to specifications..."
                         />
                     </div>
@@ -240,14 +240,14 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                     {/* Category & Skills Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="text-xs font-medium text-[#9B96AE]">Category</label>
+                            <label className="text-xs font-medium text-[#8F94A6]">Category</label>
                             <select
                                 value={category}
                                 onChange={(e) => setCategory(e.target.value)}
-                                className="mt-1 w-full rounded-lg border border-white/10 bg-[#161426] px-3 py-2 text-sm text-[#F1EEE6] focus:border-violet/60 focus:outline-none"
+                                className="mt-1 w-full rounded-lg border border-white/10 bg-[#111624] px-3 py-2 text-sm text-[#F1EEE6] focus:border-white/40 focus:outline-none"
                             >
                                 {CATEGORIES.map((cat) => (
-                                    <option key={cat} value={cat} className="bg-[#161426] text-[#F1EEE6]">
+                                    <option key={cat} value={cat} className="bg-[#111624] text-[#F1EEE6]">
                                         {cat}
                                     </option>
                                 ))}
@@ -255,13 +255,13 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                         </div>
 
                         <div>
-                            <label className="text-xs font-medium text-[#9B96AE]">
+                            <label className="text-xs font-medium text-[#8F94A6]">
                                 Required Skills (comma-separated)
                             </label>
                             <input
                                 value={skills}
                                 onChange={(e) => setSkills(e.target.value)}
-                                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
+                                className="mt-1 w-full rounded-lg border border-white/10 bg-[#0D1120] px-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#8F94A6]/60 focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                 placeholder="Solidity, React, TypeScript"
                             />
                         </div>
@@ -271,7 +271,7 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <div className="flex items-center justify-between">
-                                <label className="text-xs font-medium text-[#9B96AE]">
+                                <label className="text-xs font-medium text-[#8F94A6]">
                                     Escrow Reward ({currency}) *
                                 </label>
                                 <div className="flex items-center space-x-1 bg-white/5 p-0.5 rounded-lg border border-white/10">
@@ -280,8 +280,8 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                                         onClick={() => setCurrency('ETH')}
                                         className={`px-2.5 py-0.5 text-xs font-semibold rounded-md transition ${
                                             currency === 'ETH'
-                                                ? 'bg-gold text-vault-bg shadow-sm'
-                                                : 'text-[#9B96AE] hover:text-white'
+                                                ? 'bg-white text-black shadow-sm'
+                                                : 'text-[#8F94A6] hover:text-white'
                                         }`}
                                     >
                                         ETH
@@ -291,8 +291,8 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                                         onClick={() => setCurrency('USDC')}
                                         className={`px-2.5 py-0.5 text-xs font-semibold rounded-md transition ${
                                             currency === 'USDC'
-                                                ? 'bg-[#2775CA] text-white shadow-sm'
-                                                : 'text-[#9B96AE] hover:text-white'
+                                                ? 'bg-white text-black shadow-sm'
+                                                : 'text-[#8F94A6] hover:text-white'
                                         }`}
                                     >
                                         USDC
@@ -303,14 +303,14 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                                 <input
                                     value={reward}
                                     onChange={(e) => setReward(e.target.value)}
-                                    className="w-full rounded-lg border border-white/10 bg-white/5 pl-3 pr-14 py-2 text-sm text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
+                                    className="w-full rounded-lg border border-white/10 bg-[#0D1120] pl-3 pr-14 py-2 text-sm text-[#F1EEE6] placeholder:text-[#8F94A6]/60 focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                     placeholder={currency === 'ETH' ? 'e.g. 0.5' : 'e.g. 100'}
                                 />
-                                <span className="absolute right-3 top-2.5 text-xs font-semibold text-[#9B96AE]">
+                                <span className="absolute right-3 top-2.5 text-xs font-semibold text-[#8F94A6]">
                                     {currency}
                                 </span>
                             </div>
-                            <span className="text-[11px] text-[#9B96AE]/70 block mt-0.5">
+                            <span className="text-[11px] text-[#8F94A6]/70 block mt-0.5">
                                 {currency === 'USDC'
                                     ? 'USDC testnet token (prompts approval if allowance < amount)'
                                     : 'Deposited directly into the escrow smart contract'}
@@ -318,7 +318,7 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                         </div>
 
                         <div>
-                            <label className="text-xs font-medium text-[#9B96AE]">
+                            <label className="text-xs font-medium text-[#8F94A6]">
                                 Deadline in Days (Optional)
                             </label>
                             <input
@@ -326,10 +326,10 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                                 min="1"
                                 value={deadlineDays}
                                 onChange={(e) => setDeadlineDays(e.target.value)}
-                                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#9B96AE]/60 focus:border-violet/60 focus:outline-none"
+                                className="mt-1 w-full rounded-lg border border-white/10 bg-[#0D1120] px-3 py-2 text-sm text-[#F1EEE6] placeholder:text-[#8F94A6]/60 focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none"
                                 placeholder="e.g. 7"
                             />
-                            <span className="text-[11px] text-[#9B96AE]/70 block mt-0.5">
+                            <span className="text-[11px] text-[#8F94A6]/70 block mt-0.5">
                                 Enables 100% automated refund if deadline is missed without work submission
                             </span>
                         </div>
@@ -339,14 +339,14 @@ export function CreateBountyForm({ signer, chainId, onCreated }: Props) {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="rounded-xl bg-gold px-6 py-2.5 text-sm font-semibold text-vault-bg transition hover:brightness-110 disabled:opacity-50 shadow-md"
+                            className="rounded-xl bg-white text-black px-6 py-2.5 text-sm font-semibold hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer shadow-sm"
                         >
                             {isSubmitting ? 'Creating Bounty...' : `Create & Escrow ${currency} Bounty`}
                         </button>
                         <button
                             type="button"
                             onClick={() => setIsExpanded(false)}
-                            className="text-xs text-[#9B96AE] hover:text-white transition"
+                            className="text-xs text-[#8F94A6] hover:text-white transition cursor-pointer"
                         >
                             Cancel
                         </button>
